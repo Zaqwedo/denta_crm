@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/* iOS Safe Areas */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Custom scrollbar for iOS look */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* iOS-style focus states */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Prevent zoom on input focus on iOS */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="tel"],
+  input[type="email"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Login page animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce-gentle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out;
+}
+
+.animate-slide-up-delayed {
+  animation: slide-up 0.8s ease-out 0.2s both;
+}
+
+.animate-fade-in-delayed {
+  animation: fade-in 0.6s ease-out 0.4s both;
+}
+
+.animate-fade-in-slow {
+  animation: fade-in 0.6s ease-out 1s both;
+}
+
+.animate-bounce-gentle {
+  animation: bounce-gentle 2s infinite;
+}
+
