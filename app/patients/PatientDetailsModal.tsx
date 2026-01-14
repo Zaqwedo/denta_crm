@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { handleUpdatePatient, handleDeletePatient } from './actions'
 import { ToastManager } from './Toast'
 import { useAuth } from '../contexts/AuthContext'
+import { DOCTORS, NURSES, PATIENT_STATUSES } from '../lib/constants'
 
 interface PatientDetailsModalProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
@@ -314,10 +315,9 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                     : 'border-gray-200 bg-gray-50 text-gray-700'
                 }`}
               >
-                <option value="Ожидает">Ожидает</option>
-                <option value="Подтвержден">Подтвержден</option>
-                <option value="Отменен">Отменен</option>
-                <option value="Завершен">Завершен</option>
+                {PATIENT_STATUSES.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
               </select>
             </div>
 
@@ -337,9 +337,9 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 }`}
               >
                 <option value="">Выберите врача</option>
-                <option value="Дмитриев А.В.">Дмитриев А.В.</option>
-                <option value="Семёнов Э.М.">Семёнов Э.М.</option>
-                <option value="Иванова К.С.">Иванова К.С.</option>
+                {DOCTORS.map(doctor => (
+                  <option key={doctor} value={doctor}>{doctor}</option>
+                ))}
               </select>
             </div>
 
@@ -359,9 +359,9 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 }`}
               >
                 <option value="">Выберите медсестру</option>
-                <option value="Иванова Мария Петровна">Иванова Мария Петровна</option>
-                <option value="Петрова Анна Сергеевна">Петрова Анна Сергеевна</option>
-                <option value="Сидорова Ольга Викторовна">Сидорова Ольга Викторовна</option>
+                {NURSES.map(nurse => (
+                  <option key={nurse} value={nurse}>{nurse}</option>
+                ))}
               </select>
             </div>
 
