@@ -55,3 +55,46 @@ export const supabase = createClient(
     },
   }
 )
+
+/**
+ * Устанавливает анонимную сессию Supabase для RLS
+ * Необходимо вызывать перед запросами к БД в server-side коде
+ */
+let anonymousSessionPromise: Promise<void> | null = null
+
+export async function ensureAnonymousSession(): Promise<void> {
+  // Если сессия уже устанавливается, ждем её
+  if (anonymousSessionPromise) {
+    return anonymousSessionPromise
+  }
+
+  // Проверяем, есть ли уже активная сессия
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session) {
+    return Promise.resolve()
+  }
+
+  // Устанавливаем анонимную сессию
+  anonymousSessionPromise = (async () => {
+    try {
+      const { data, error } = await supabase.auth.signInAnonymously()
+      
+      if (error) {
+        console.error('❌ Ошибка установки анонимной сессии Supabase:', error)
+        throw error
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ Анонимная сессия Supabase установлена для RLS')
+      }
+    } catch (error) {
+      console.error('❌ Критическая ошибка: не удалось установить анонимную сессию Supabase')
+      throw error
+    } finally {
+      // Сбрасываем promise после завершения
+      anonymousSessionPromise = null
+    }
+  })()
+
+  return anonymousSessionPromise
+}
