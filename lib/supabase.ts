@@ -91,6 +91,15 @@ export async function ensureAnonymousSession(): Promise<void> {
       const { data, error } = await supabase.auth.signInAnonymously()
       
       if (error) {
+        // Если анонимная аутентификация отключена, логируем и продолжаем
+        if (error.message.includes('Anonymous sign-ins are disabled')) {
+          console.error('⚠️  Анонимная аутентификация отключена в Supabase')
+          console.error('📋 Инструкция: Включите в Supabase Dashboard → Authentication → Settings → Enable Anonymous Sign-ins')
+          // Не бросаем ошибку, просто возвращаемся - возможно RLS политики разрешают доступ
+          anonymousSessionPromise = null
+          return
+        }
+        
         console.error('❌ Ошибка установки анонимной сессии Supabase:', error)
         // Сбрасываем promise при ошибке, чтобы можно было повторить
         anonymousSessionPromise = null
@@ -100,7 +109,15 @@ export async function ensureAnonymousSession(): Promise<void> {
       if (process.env.NODE_ENV === 'development') {
         console.log('✅ Анонимная сессия Supabase установлена для RLS')
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Если это ошибка об отключенной анонимной аутентификации, просто продолжаем
+      if (error?.message?.includes('Anonymous sign-ins are disabled')) {
+        console.error('⚠️  Анонимная аутентификация отключена в Supabase')
+        console.error('📋 Инструкция: Включите в Supabase Dashboard → Authentication → Settings → Enable Anonymous Sign-ins')
+        anonymousSessionPromise = null
+        return
+      }
+      
       console.error('❌ Критическая ошибка: не удалось установить анонимную сессию Supabase')
       // Сбрасываем promise при ошибке
       anonymousSessionPromise = null
