@@ -1,16 +1,18 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { logger } from '@/lib/logger'
+import { supabase } from '@/lib/supabase'
 
 // Разрешенные Email адреса
 // Добавьте email адреса для ограничения доступа
 
-const ALLOWED_EMAILS = [
+const ALLOWED_EMAILS: string[] = [
   // Добавьте разрешенные email адреса
   // Например: 'admin@denta-crm.com'
 ]
 
-interface User {
+export interface User {
   id: number
   first_name: string
   last_name?: string
@@ -54,7 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (error) {
-        console.error('Error checking auth:', error)
+        logger.error('Error checking auth:', error)
         logout()
       } finally {
         setIsLoading(false)
@@ -79,10 +81,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('denta_auth_type', authType)
   }
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null)
     localStorage.removeItem('denta_user')
     localStorage.removeItem('denta_auth_timestamp')
+
+    // Выходим из Supabase
+    await supabase.auth.signOut()
   }
 
   const value = {

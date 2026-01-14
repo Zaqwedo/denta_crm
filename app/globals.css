@@ -34,10 +34,53 @@ input:focus, select:focus, textarea:focus {
   input[type="text"],
   input[type="tel"],
   input[type="email"],
+  input[type="date"],
+  input[type="time"],
   select,
   textarea {
     font-size: 16px !important;
   }
+}
+
+/* Fix width for date and time inputs to match other fields */
+/* Строго ограничиваем ширину полей date и time */
+#patient-form input[type="date"],
+#patient-form input[type="time"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  /* Убираем встроенные элементы браузера */
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+
+/* Скрываем встроенные элементы для полей date и time */
+#patient-form input[type="date"]::-webkit-calendar-picker-indicator,
+#patient-form input[type="time"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 1;
+  margin-left: 0;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+}
+
+#patient-form input[type="date"]::-webkit-inner-spin-button,
+#patient-form input[type="time"]::-webkit-inner-spin-button {
+  display: none;
+}
+
+#patient-form input[type="date"]::-webkit-clear-button,
+#patient-form input[type="time"]::-webkit-clear-button {
+  display: none;
+}
+
+/* Ограничиваем ширину всех контейнеров полей в форме */
+#patient-form > div > div {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 /* Login page animations */

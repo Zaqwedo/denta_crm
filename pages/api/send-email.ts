@@ -46,7 +46,7 @@ export default async function handler(
     console.error('❌ Ошибка в email API:', error)
     res.status(500).json({
       error: 'Failed to process email',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
     })
   }
 }

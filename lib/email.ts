@@ -1,11 +1,11 @@
 // lib/email.ts - Сервис для отправки email
 // Для продакшена замените на реальный SMTP сервис
 
-// Импорт EmailJS (убедитесь, что пакет установлен: npm install emailjs-com)
+// Импорт EmailJS (убедитесь, что пакет установлен: npm install @emailjs/browser)
 let emailjs: any = null
 if (typeof window !== 'undefined') {
   try {
-    emailjs = require('emailjs-com')
+    emailjs = require('@emailjs/browser')
   } catch (e) {
     console.warn('EmailJS not available, using demo mode')
   }
@@ -138,7 +138,7 @@ export class EmailService {
 
           console.log('⚠️ Gmail API вернул демо режим или ошибку')
         } catch (apiError) {
-          console.warn('⚠️ Gmail API не доступен:', apiError.message)
+          console.warn('⚠️ Gmail API не доступен:', apiError instanceof Error ? apiError.message : String(apiError))
         }
       }
 
@@ -180,10 +180,12 @@ export class EmailService {
           // }
 
           const result = await emailjs.send(
-            process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
-            process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+            process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!,
+            process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!,
             templateParams,
-            process.env.NEXT_PUBLIC_EMAILJS_USER_ID
+            {
+              publicKey: process.env.NEXT_PUBLIC_EMAILJS_USER_ID!
+            }
           )
 
           // Проверяем результат
@@ -197,9 +199,9 @@ export class EmailService {
         } catch (emailjsError) {
           console.error('❌ EmailJS ошибка:', emailjsError)
           console.error('❌ Детали ошибки:', {
-            message: emailjsError.message,
-            status: emailjsError.status,
-            text: emailjsError.text
+            message: emailjsError instanceof Error ? emailjsError.message : String(emailjsError),
+            status: emailjsError && typeof emailjsError === 'object' && 'status' in emailjsError ? emailjsError.status : 'unknown',
+            text: emailjsError && typeof emailjsError === 'object' && 'text' in emailjsError ? emailjsError.text : 'unknown'
           })
           return false // Вернем false, чтобы перейти к демо режиму
         }

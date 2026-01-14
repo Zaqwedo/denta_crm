@@ -62,6 +62,23 @@ const PlusIcon = ({ size = 24, className = '' }: { size?: number; className?: st
   </svg>
 )
 
+const ChangesIcon = ({ size = 24, className = '' }: { size?: number; className?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+  </svg>
+)
+
 const LogOutIcon = ({ size = 24, className = '' }: { size?: number; className?: string }) => (
   <svg
     width={size}
@@ -90,18 +107,32 @@ export function TabBar() {
     router.push('/login')
   }
 
+  // Нормализуем pathname (убираем trailing slash)
+  const normalizedPathname = pathname?.replace(/\/$/, '') || ''
+  
+  // Отладка (только в development)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('📍 TabBar pathname:', pathname, 'normalized:', normalizedPathname)
+  }
+
   const tabs = [
     {
       name: 'Список',
       href: '/patients',
       icon: ListIcon,
-      active: pathname === '/patients'
+      active: normalizedPathname === '/patients'
     },
     {
       name: 'Календарь',
       href: '/calendar',
       icon: CalendarIcon,
-      active: pathname === '/calendar'
+      active: normalizedPathname === '/calendar' || normalizedPathname.startsWith('/calendar/')
+    },
+    {
+      name: 'Изменения',
+      href: '/patients/changes',
+      icon: ChangesIcon,
+      active: normalizedPathname === '/patients/changes' || normalizedPathname.startsWith('/patients/changes/')
     },
     {
       name: 'Выход',
@@ -113,7 +144,7 @@ export function TabBar() {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 safe-area-inset-bottom">
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 safe-area-inset-bottom z-[9999] shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
       <div className="flex justify-between items-center max-w-md mx-auto">
         <div className="flex justify-around items-center flex-1 w-full">
           {tabs.map((tab) => {
@@ -122,7 +153,12 @@ export function TabBar() {
               <Link
                 key={tab.name}
                 href={tab.href}
-                onClick={tab.onClick || undefined}
+                onClick={(e) => {
+                  console.log(`🎯 TAB CLICK: ${tab.name}, href: ${tab.href}`)
+                  if (tab.onClick) {
+                    tab.onClick()
+                  }
+                }}
                 className={`flex flex-col items-center px-3 py-2 rounded-xl transition-colors ${
                   tab.active
                     ? 'text-blue-600 bg-blue-50'

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { DailyPreviewModal } from './DailyPreviewModal'
-import { PatientDetailsModal } from './PatientDetailsModal'
 
 interface Patient {
   id: string
@@ -53,11 +53,11 @@ const ChevronRightIcon = ({ size = 24, className = '' }: { size?: number; classN
 )
 
 export function MonthView({ patients, selectedDate, onDateChange }: MonthViewProps) {
+  const router = useRouter()
   const [selectedDayForPreview, setSelectedDayForPreview] = useState<Date | null>(null)
-  const [selectedPatientForEdit, setSelectedPatientForEdit] = useState<Patient | null>(null)
 
   const handlePatientSelect = (patient: Patient) => {
-    setSelectedPatientForEdit(patient)
+    router.push(`/patients/${patient.id}`)
     setSelectedDayForPreview(null) // Закрываем preview модал
   }
 
@@ -112,8 +112,16 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
     return days
   }
 
+  // Функция для форматирования даты в YYYY-MM-DD в локальном времени
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   const getPatientsForDay = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = formatDateLocal(date)
     return patients.filter(patient => patient.date === dateStr)
   }
 
@@ -205,8 +213,7 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
                       {dayPatients.slice(0, 3).map((patient, patientIndex) => (
                         <div
                           key={patient.id}
-                          onClick={() => setSelectedPatient(patient)}
-                          className={`w-2 h-2 rounded-full ${getAppointmentColor(patient.status)} cursor-pointer hover:scale-125 transition-transform`}
+                          className={`w-2 h-2 rounded-full ${getAppointmentColor(patient.status)}`}
                           title={`${patient.name} - ${patient.time || 'Время не указано'}`}
                         ></div>
                       ))}
@@ -256,17 +263,6 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
         patients={patients}
         onPatientSelect={handlePatientSelect}
       />
-      {selectedDayForPreview && console.log('📅 MONTH VIEW: Передаем в DailyPreviewModal дату:', selectedDayForPreview.toISOString(), 'пациентов всего:', patients.length)}
-
-      {/* Patient Details Modal */}
-      {selectedPatientForEdit && (
-        <PatientDetailsModal
-          patient={selectedPatientForEdit}
-          isOpen={!!selectedPatientForEdit}
-          onClose={() => setSelectedPatientForEdit(null)}
-          rowIndex={parseInt(selectedPatientForEdit.id) || undefined}
-        />
-      )}
     </>
   )
 }

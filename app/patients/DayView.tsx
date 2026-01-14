@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { PatientDetailsModal } from './PatientDetailsModal'
+import { useRouter } from 'next/navigation'
 
 interface Patient {
   id: string
@@ -53,7 +51,7 @@ const ChevronRightIcon = ({ size = 24, className = '' }: { size?: number; classN
 )
 
 export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) {
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
+  const router = useRouter()
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(selectedDate)
@@ -61,10 +59,18 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
     onDateChange(newDate)
   }
 
+  // Функция для форматирования даты в YYYY-MM-DD в локальном времени
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const selectedDateStr = formatDateLocal(selectedDate)
   const dayPatients = patients.filter(patient => {
     if (!patient.date) return false
-    const patientDate = new Date(patient.date)
-    return patientDate.toDateString() === selectedDate.toDateString()
+    return patient.date === selectedDateStr
   }).sort((a, b) => {
     const timeA = a.time || '00:00'
     const timeB = b.time || '00:00'
@@ -134,7 +140,7 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
               {dayPatients.map((patient) => (
                 <div
                   key={patient.id}
-                  onClick={() => setSelectedPatient(patient)}
+                  onClick={() => router.push(`/patients/${patient.id}`)}
                   className="bg-white rounded-[16px] p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between mb-2">
@@ -164,16 +170,6 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
           )}
         </div>
       </div>
-
-      {/* Patient Details Modal */}
-      {selectedPatient && (
-        <PatientDetailsModal
-          patient={selectedPatient}
-          isOpen={!!selectedPatient}
-          onClose={() => setSelectedPatient(null)}
-          rowIndex={parseInt(selectedPatient.id) || undefined}
-        />
-      )}
     </>
   )
 }

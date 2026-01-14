@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { handleAddPatient } from './actions'
-import { experimental_useFormState as useFormState } from 'react-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { DOCTORS, NURSES, PATIENT_STATUSES } from '../../lib/constants'
 
 // Функция для форматирования телефона с маской
 function formatPhone(value: string): string {
@@ -23,6 +24,7 @@ function formatPhone(value: string): string {
 }
 
 export function NewPatientForm() {
+  const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -117,6 +119,7 @@ export function NewPatientForm() {
       action={submitForm}
       className="space-y-6"
     >
+      <input type="hidden" name="created_by_email" value={user?.username || ''} />
       <div>
         <label className="block text-lg font-medium text-gray-700 mb-3">
           ФИО
@@ -176,10 +179,9 @@ export function NewPatientForm() {
           className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           defaultValue="Ожидает"
         >
-          <option value="Ожидает">Ожидает</option>
-          <option value="Подтвержден">Подтвержден</option>
-          <option value="Отменен">Отменен</option>
-          <option value="Завершен">Завершен</option>
+          {PATIENT_STATUSES.map(status => (
+            <option key={status} value={status}>{status}</option>
+          ))}
         </select>
       </div>
 
@@ -192,9 +194,9 @@ export function NewPatientForm() {
           className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
         >
           <option value="">Выберите врача</option>
-          <option value="Дмитриев А.В.">Дмитриев А.В.</option>
-          <option value="Семёнов Э.М.">Семёнов Э.М.</option>
-          <option value="Иванова К.С.">Иванова К.С.</option>
+          {DOCTORS.map(doctor => (
+            <option key={doctor} value={doctor}>{doctor}</option>
+          ))}
         </select>
       </div>
 
@@ -207,9 +209,9 @@ export function NewPatientForm() {
           className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
         >
           <option value="">Выберите медсестру</option>
-          <option value="Иванова Мария Петровна">Иванова Мария Петровна</option>
-          <option value="Петрова Анна Сергеевна">Петрова Анна Сергеевна</option>
-          <option value="Сидорова Ольга Викторовна">Сидорова Ольга Викторовна</option>
+          {NURSES.map(nurse => (
+            <option key={nurse} value={nurse}>{nurse}</option>
+          ))}
         </select>
       </div>
 

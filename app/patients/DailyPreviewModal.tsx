@@ -53,12 +53,20 @@ export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onP
     onClose() // Закрываем DailyPreviewModal после закрытия PatientForm
   }
 
+  // Функция для форматирования даты в YYYY-MM-DD в локальном времени
+  const formatDateLocal = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
   // Получаем пациентов на выбранную дату
   console.log('🔍 DAILY PREVIEW: Поиск пациентов для даты:', selectedDate?.toISOString())
   console.log('🔍 DAILY PREVIEW: Всего пациентов:', patients.length)
 
-  // Используем тот же формат даты, что и в других компонентах (YYYY-MM-DD)
-  const selectedDateStr = selectedDate.toISOString().split('T')[0]
+  // Используем локальное время для сравнения дат
+  const selectedDateStr = formatDateLocal(selectedDate)
 
   const dayPatients = patients.filter(patient => {
     console.log('🔍 DAILY PREVIEW: Проверяем пациента:', patient.name, 'дата из БД:', patient.date, 'тип:', typeof patient.date)

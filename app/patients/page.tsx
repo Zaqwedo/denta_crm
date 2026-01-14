@@ -1,9 +1,11 @@
 // app/patients/page.tsx
 import { getPatients } from '@/lib/supabase-db'
 import { PatientForm } from './PatientForm'
-import { PatientCard } from './PatientCard'
+import { PatientsList } from './PatientsList'
 import { TabBar } from './TabBar'
 import { ProtectedRoute } from '../components/ProtectedRoute'
+import { GoogleAuthHandler } from './GoogleAuthHandler'
+import { logger } from '@/lib/logger'
 
 export const revalidate = 60
 
@@ -15,11 +17,12 @@ export default async function PatientsPage() {
     patients = await getPatients()
   } catch (err) {
     error = err instanceof Error ? err.message : 'Произошла ошибка при загрузке данных'
-    console.error('Ошибка загрузки пациентов:', err)
+    logger.error('Ошибка загрузки пациентов:', err)
   }
 
   return (
     <ProtectedRoute>
+      <GoogleAuthHandler />
       <PatientsPageContent patients={patients} error={error} />
     </ProtectedRoute>
   )
@@ -38,7 +41,7 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
 
 
   return (
-    <div className="min-h-screen bg-[#f2f2f7] pb-20 safe-area-inset-bottom">
+    <div className="min-h-screen bg-[#f2f2f7]" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
       <div className="max-w-md mx-auto px-4 py-8">
         {/* Large Title Header */}
         <div className="mb-8">
@@ -70,27 +73,18 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
             <PatientForm isModal={false} />
           </div>
         ) : (
-          <div className="space-y-4">
-            {patients.map((patient) => {
-              const cleanPatient = {
-                id: patient.id || 'без id',
-                name: patient.ФИО || 'Без имени',
-                phone: patient.Телефон || null,
-                date: patient['Дата записи'] || null,
-                time: patient['Время записи'] || null,
-                doctor: patient.Доктор || null,
-                status: patient.Статус || null,
-              }
-
-              return (
-                <PatientCard
-                  key={`patient-${cleanPatient.id}`} // Используем id как ключ
-                  patient={cleanPatient} // Передаем "чистый" объект
-                  rowIndex={0} // Теперь не используем rowIndex для Supabase
-                />
-              )
-            })}
-          </div>
+          <PatientsList 
+            patients={patients.map(patient => ({
+              id: patient.id || 'без id',
+              name: patient.ФИО || 'Без имени',
+              phone: patient.Телефон || null,
+              date: patient['Дата записи'] || null,
+              time: patient['Время записи'] || null,
+              doctor: patient.Доктор || null,
+              status: patient.Статус || null,
+              nurse: patient.Медсестра || null,
+            }))}
+          />
         )}
       </div>
 

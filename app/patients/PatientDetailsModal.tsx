@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { handleUpdatePatient, handleDeletePatient } from './actions'
 import { ToastManager } from './Toast'
+import { useAuth } from '../contexts/AuthContext'
 
 interface PatientDetailsModalProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
@@ -13,7 +14,7 @@ interface PatientDetailsModalProps {
 }
 
 export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: PatientDetailsModalProps) {
-
+  const { user } = useAuth()
   const [isEditMode, setIsEditMode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -173,7 +174,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       if (!idToDelete) {
         throw new Error('Не удалось определить ID пациента для удаления.');
       }
-      const result = await handleDeletePatient(idToDelete)
+      const result = await handleDeletePatient(idToDelete, user?.username || 'unknown')
 
       if (result.success) {
         // Закрываем модальное окно только после успешного ответа от сервера
@@ -192,9 +193,19 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 p-4">
-        <div className="bg-white rounded-t-[20px] w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-          <div className="fixed top-0 left-0 right-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between" style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))' }}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 p-0 sm:p-4">
+        <div 
+          className="bg-white rounded-t-[20px] sm:rounded-[20px] w-full max-w-md shadow-xl flex flex-col"
+          style={{ 
+            maxHeight: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
+            height: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))'
+          }}
+        >
+          {/* Фиксированный заголовок */}
+          <div 
+            className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-[20px]" 
+            style={{ paddingTop: 'max(1rem, calc(1rem + env(safe-area-inset-top)))' }}
+          >
             <h2 className="text-xl font-bold text-gray-900">
               {isEditMode ? 'Редактирование пациента' : 'Просмотр пациента'}
             </h2>
@@ -206,8 +217,10 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
             </button>
           </div>
 
-        <form id="patient-form" onSubmit={handleSubmit} className="p-6">
-          <div className="space-y-6">
+          {/* Скроллируемый контент */}
+          <div className="flex-1 overflow-y-auto overscroll-contain">
+            <form id="patient-form" onSubmit={handleSubmit} className="p-6">
+              <div className="space-y-6">
             <div>
               <label className="block text-lg font-medium text-gray-700 mb-3">
                 ФИО
@@ -413,11 +426,18 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 {error}
               </div>
             )}
+              </div>
+            </form>
           </div>
-        </form>
 
-        {/* Sticky bottom buttons */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 flex flex-col gap-3">
+          {/* Sticky bottom buttons */}
+          <div 
+            className="flex-shrink-0 bg-white border-t border-gray-200 px-6 flex flex-col gap-3"
+            style={{ 
+              paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))',
+              paddingTop: '1rem'
+            }}
+          >
           {isEditMode ? (
             // Режим редактирования: Сохранить и Отмена
             <>
@@ -458,9 +478,9 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
               </button>
             </>
           )}
+          </div>
         </div>
       </div>
-    </div>
-  </>
-)
+    </>
+  )
 }

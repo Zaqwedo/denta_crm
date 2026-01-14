@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { handleAddPatient } from './actions'
+import { useAuth } from '../contexts/AuthContext'
+import { DOCTORS, NURSES, PATIENT_STATUSES } from '../../lib/constants'
 
 // Функция для форматирования телефона с маской
 function formatPhone(value: string): string {
@@ -37,6 +39,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
   initialDate?: string
   isModal?: boolean
 }) {
+  const { user } = useAuth()
   const [isOpenInternal, setIsOpenInternal] = useState(false)
   const isOpen = isModal ? isOpenProp : isOpenInternal
   const onClose = isModal ? onCloseProp : () => setIsOpenInternal(false)
@@ -81,7 +84,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
       const result = await handleAddPatient(formData)
 
       if (result.success) {
-        onClose() // Используем onClose из пропсов
+        onClose?.() // Используем onClose из пропсов
         setPhoneValue('+7 (')
         // Сбрасываем форму
         e.currentTarget.reset()
@@ -135,7 +138,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
               <button
                 type="button" // Добавлено type="button"
                 onClick={() => {
-                  onClose() // Используем onClose из пропсов
+                  onClose?.() // Используем onClose из пропсов
                   setError(null)
                   setPhoneValue('+7 (')
                 }}
@@ -146,6 +149,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
             </div>
 
             <form onSubmit={onSubmit}>
+              <input type="hidden" name="created_by_email" value={user?.username || ''} />
               <div className="space-y-4">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -215,10 +219,9 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     defaultValue="Ожидает"
                   >
-                    <option value="Ожидает">Ожидает</option>
-                    <option value="Подтвержден">Подтвержден</option>
-                    <option value="Отменен">Отменен</option>
-                    <option value="Завершен">Завершен</option>
+                    {PATIENT_STATUSES.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -232,9 +235,9 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
                     <option value="">Выберите врача</option>
-                    <option value="Дмитриев А.В.">Дмитриев А.В.</option>
-                    <option value="Семёнов Э.М.">Семёнов Э.М.</option>
-                    <option value="Иванова К.С.">Иванова К.С.</option>
+                    {DOCTORS.map(doctor => (
+                      <option key={doctor} value={doctor}>{doctor}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -248,9 +251,9 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
                   >
                     <option value="">Выберите медсестру</option>
-                    <option value="Иванова Мария Петровна">Иванова Мария Петровна</option>
-                    <option value="Петрова Анна Сергеевна">Петрова Анна Сергеевна</option>
-                    <option value="Сидорова Ольга Викторовна">Сидорова Ольга Викторовна</option>
+                    {NURSES.map(nurse => (
+                      <option key={nurse} value={nurse}>{nurse}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -302,7 +305,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                   <button
                     type="button"
                     onClick={() => {
-                      onClose() // Используем onClose из пропсов
+                      onClose?.() // Используем onClose из пропсов
                       setError(null)
                       setPhoneValue('+7 (')
                     }}

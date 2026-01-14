@@ -1,6 +1,7 @@
 'use server';
 
 import { supabase } from '../lib/supabase'
+import { logger } from './logger'
 
 export interface PatientData {
   id?: string; // ID записи (UUID)
@@ -14,6 +15,7 @@ export interface PatientData {
   Зубы?: string; // Зубы
   Медсестра?: string; // Медсестра
   'Дата рождения пациента'?: string; // Дата рождения пациента
+  created_by_email?: string; // Почта того, кто создал запись
 }
 
 /**
@@ -27,7 +29,7 @@ export async function getPatients(): Promise<PatientData[]> {
       .select('*');
 
     if (error) {
-      console.error('Ошибка при получении данных пациентов из Supabase:', error);
+      logger.error('Ошибка при получении данных пациентов из Supabase:', error);
       throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
@@ -36,7 +38,104 @@ export async function getPatients(): Promise<PatientData[]> {
     return data as PatientData[];
 
   } catch (error) {
-    console.error('Ошибка при получении данных пациентов:', error);
+    logger.error('Ошибка при получении данных пациентов:', error);
+    throw error;
+  }
+}
+
+/**
+ * Получает историю изменений для конкретного пациента
+ * @param patientId ID пациента
+ * @returns Массив объектов с историей изменений
+ */
+export async function getPatientChanges(patientId: string): Promise<Array<{
+  field_name: string
+  old_value: string | null
+  new_value: string | null
+  changed_at: string
+  changed_by_email: string | null
+}>> {
+  try {
+    const { data, error } = await supabase
+      .from('patient_changes')
+      .select('field_name, old_value, new_value, changed_at, changed_by_email')
+      .eq('patient_id', patientId)
+      .order('changed_at', { ascending: false })
+      .limit(50) // Ограничиваем последними 50 изменениями
+
+    if (error) {
+      logger.error('Ошибка при получении истории изменений:', error)
+      return []
+    }
+
+    return data || []
+  } catch (error) {
+    logger.error('Ошибка при получении истории изменений:', error)
+    return []
+  }
+}
+
+/**
+ * Получает измененные записи пациентов (где updated_at существует и отличается от created_at)
+ * @returns Массив объектов с данными измененных пациентов
+ */
+export async function getChangedPatients(): Promise<PatientData[]> {
+  try {
+    // Получаем все записи с полями created_at и updated_at
+    // Используем безопасный запрос, который не упадет, если updated_at еще не настроен
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (error) {
+      logger.error('Ошибка при получении измененных записей из Supabase:', error);
+      throw new Error(`Ошибка Supabase: ${error.message}`);
+    }
+
+    if (!data) {
+      return [];
+    }
+
+    // Фильтруем записи, которые были изменены (updated_at существует и отличается от created_at)
+    const changedPatients = data.filter((patient: any) => {
+      // Проверяем наличие полей created_at и updated_at
+      const hasUpdatedAt = patient.updated_at !== null && patient.updated_at !== undefined;
+      const hasCreatedAt = patient.created_at !== null && patient.created_at !== undefined;
+
+      if (!hasUpdatedAt) {
+        // Если updated_at нет, значит поле еще не настроено в Supabase
+        return false;
+      }
+
+      if (!hasCreatedAt) {
+        // Если created_at нет, но updated_at есть, считаем запись измененной
+        return true;
+      }
+
+      // Сравниваем даты (с точностью до секунды)
+      try {
+        const updatedTime = new Date(patient.updated_at).getTime();
+        const createdTime = new Date(patient.created_at).getTime();
+        // Если updated_at отличается от created_at более чем на 1 секунду, значит запись была изменена
+        return Math.abs(updatedTime - createdTime) > 1000;
+      } catch (e) {
+        // Если не удалось распарсить даты, пропускаем запись
+        return false;
+      }
+    });
+
+    // Сортируем по updated_at (новые изменения сверху)
+    changedPatients.sort((a: any, b: any) => {
+      const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    return changedPatients as PatientData[];
+
+  } catch (error) {
+    logger.error('Ошибка при получении измененных записей:', error);
     throw error;
   }
 }
@@ -46,7 +145,7 @@ export async function getPatients(): Promise<PatientData[]> {
  * @param data Данные пациента
  */
 export async function addPatient(data: PatientData): Promise<void> {
-  console.log('🚀 Supabase: addPatient вызван с данными:', data);
+  logger.log('🚀 Supabase: addPatient вызван с данными:', data);
 
   // Валидация: ФИО является обязательным полем
   if (!data.ФИО || data.ФИО.trim() === '') {
@@ -59,15 +158,83 @@ export async function addPatient(data: PatientData): Promise<void> {
       .insert([data]);
 
     if (error) {
-      console.error('Ошибка при добавлении пациента в Supabase:', error);
+      logger.error('Ошибка при добавлении пациента в Supabase:', error);
       throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
-    console.log('✅ Supabase: Пациент успешно добавлен!');
+    logger.log('✅ Supabase: Пациент успешно добавлен!');
 
   } catch (error) {
-    console.error('❌ Ошибка при добавлении пациента:', error);
+    logger.error('❌ Ошибка при добавлении пациента:', error);
     throw error;
+  }
+}
+
+/**
+ * Сохраняет историю изменений пациента
+ */
+async function savePatientChanges(
+  patientId: string,
+  oldData: PatientData,
+  newData: PatientData,
+  changedByEmail?: string
+): Promise<void> {
+  try {
+    const changes: Array<{
+      patient_id: string
+      field_name: string
+      old_value: string | null
+      new_value: string | null
+      changed_by_email?: string
+    }> = []
+
+    // Маппинг русских названий полей на понятные названия
+    const fieldMapping: Record<string, string> = {
+      'ФИО': 'ФИО',
+      'Телефон': 'Телефон',
+      'Комментарии': 'Комментарии',
+      'Дата записи': 'Дата записи',
+      'Время записи': 'Время записи',
+      'Статус': 'Статус',
+      'Доктор': 'Доктор',
+      'Зубы': 'Зубы',
+      'Медсестра': 'Медсестра',
+      'Дата рождения пациента': 'Дата рождения',
+    }
+
+    // Сравниваем каждое поле
+    Object.keys(fieldMapping).forEach((key) => {
+      const oldValue = oldData[key as keyof PatientData]?.toString() || null
+      const newValue = newData[key as keyof PatientData]?.toString() || null
+
+      // Если значение изменилось
+      if (oldValue !== newValue) {
+        changes.push({
+          patient_id: patientId,
+          field_name: fieldMapping[key],
+          old_value: oldValue,
+          new_value: newValue,
+          changed_by_email: changedByEmail,
+        })
+      }
+    })
+
+    // Сохраняем изменения, если они есть
+    if (changes.length > 0) {
+      const { error } = await supabase
+        .from('patient_changes')
+        .insert(changes)
+
+      if (error) {
+        logger.error('Ошибка при сохранении истории изменений:', error)
+        // Не бросаем ошибку, чтобы не прервать обновление пациента
+      } else {
+        logger.log(`✅ Сохранено ${changes.length} изменений для пациента ${patientId}`)
+      }
+    }
+  } catch (error) {
+    logger.error('Ошибка при сохранении истории изменений:', error)
+    // Не бросаем ошибку, чтобы не прервать обновление пациента
   }
 }
 
@@ -75,28 +242,51 @@ export async function addPatient(data: PatientData): Promise<void> {
  * Обновляет данные пациента в таблице 'patients' Supabase
  * @param patientId ID пациента (UUID)
  * @param updatedData Обновленные данные
+ * @param changedByEmail Email пользователя, который внес изменения (опционально)
  */
-export async function updatePatient(patientId: string, updatedData: PatientData): Promise<void> {
-  console.log('🚀 Supabase: updatePatient вызвана!');
-  console.log('🔄 Supabase: ID для поиска:', patientId);
-  console.log('🔄 Supabase: Данные для обновления:', updatedData);
+export async function updatePatient(
+  patientId: string,
+  updatedData: PatientData,
+  changedByEmail?: string
+): Promise<void> {
+  logger.log('🚀 Supabase: updatePatient вызвана!');
+  logger.log('🔄 Supabase: ID для поиска:', patientId);
+  logger.log('🔄 Supabase: Данные для обновления:', updatedData);
 
   try {
+    // Получаем старые данные перед обновлением
+    const { data: oldData, error: fetchError } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('id', patientId)
+      .single()
+
+    if (fetchError) {
+      logger.error('Ошибка при получении старых данных пациента:', fetchError)
+      // Продолжаем обновление даже если не удалось получить старые данные
+    }
+
+    // Обновляем данные
     const { error } = await supabase
       .from('patients')
       .update(updatedData)
-      .eq('id', patientId); // Обновляем по колонке 'id'
+      .eq('id', patientId)
 
     if (error) {
-      console.error('Ошибка при обновлении пациента в Supabase:', error);
-      throw new Error(`Ошибка Supabase: ${error.message}`);
+      logger.error('Ошибка при обновлении пациента в Supabase:', error)
+      throw new Error(`Ошибка Supabase: ${error.message}`)
     }
 
-    console.log('✅ Supabase: Пациент успешно обновлен!');
+    logger.log('✅ Supabase: Пациент успешно обновлен!')
+
+    // Сохраняем историю изменений, если есть старые данные
+    if (oldData) {
+      await savePatientChanges(patientId, oldData as PatientData, updatedData, changedByEmail)
+    }
 
   } catch (error) {
-    console.error('❌ Ошибка при обновлении пациента:', error);
-    throw error;
+    logger.error('❌ Ошибка при обновлении пациента:', error)
+    throw error
   }
 }
 
@@ -105,8 +295,8 @@ export async function updatePatient(patientId: string, updatedData: PatientData)
  * @param patientId ID пациента (UUID)
  */
 export async function deletePatient(patientId: string): Promise<void> {
-  console.log('🚀 Supabase: deletePatient вызвана!');
-  console.log('🔄 Supabase: ID для удаления:', patientId);
+  logger.log('🚀 Supabase: deletePatient вызвана!');
+  logger.log('🔄 Supabase: ID для удаления:', patientId);
 
   try {
     const { error } = await supabase
@@ -115,14 +305,70 @@ export async function deletePatient(patientId: string): Promise<void> {
       .eq('id', patientId); // Удаляем по колонке 'id'
 
     if (error) {
-      console.error('Ошибка при удалении пациента из Supabase:', error);
+      logger.error('Ошибка при удалении пациента из Supabase:', error);
       throw new Error(`Ошибка Supabase: ${error.message}`);
     }
 
-    console.log('✅ Supabase: Пациент успешно удален!');
+    logger.log('✅ Supabase: Пациент успешно удален!');
 
   } catch (error) {
-    console.error('❌ Ошибка при удалении пациента:', error);
+    logger.error('❌ Ошибка при удалении пациента:', error);
+    throw error;
+  }
+}
+
+/**
+ * Переносит пациента в таблицу 'deleted_patients' перед удалением
+ * @param patientId ID пациента (UUID)
+ * @param deletedByEmail Почта того, кто удалил
+ */
+export async function archiveAndRemovePatient(patientId: string, deletedByEmail: string): Promise<void> {
+  logger.log('🚀 Supabase: archiveAndRemovePatient вызван для ID:', patientId);
+
+  try {
+    // 1. Сначала получаем данные пациента
+    const { data: patient, error: fetchError } = await supabase
+      .from('patients')
+      .select('*')
+      .eq('id', patientId)
+      .single();
+
+    if (fetchError || !patient) {
+      throw new Error(`Не удалось найти пациента: ${fetchError?.message || 'запись не найдена'}`);
+    }
+
+    // 2. Вставляем данные в таблицу deleted_patients
+    // Исключаем id и системные поля, которые могут конфликтовать
+    const { id, created_at, ...patientDataWithoutId } = patient as any;
+
+    const { error: insertError } = await supabase
+      .from('deleted_patients')
+      .insert([{
+        ...patientDataWithoutId,
+        original_id: String(id), // Принудительно в строку
+        deleted_by_email: deletedByEmail,
+        deleted_at: new Date().toISOString()
+      }]);
+
+    if (insertError) {
+      logger.error('Ошибка при архивации пациента:', insertError);
+      throw new Error(`Ошибка архивации: ${insertError.message}`);
+    }
+
+    // 3. Если архивация успешна, удаляем из основной таблицы
+    const { error: deleteError } = await supabase
+      .from('patients')
+      .delete()
+      .eq('id', patientId);
+
+    if (deleteError) {
+      throw new Error(`Ошибка при удалении после архивации: ${deleteError.message}`);
+    }
+
+    logger.log('✅ Supabase: Пациент успешно архивирован и удален!');
+
+  } catch (error) {
+    logger.error('❌ Ошибка в archiveAndRemovePatient:', error);
     throw error;
   }
 }

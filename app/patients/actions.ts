@@ -1,10 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { addPatient, updatePatient, deletePatient, PatientData } from '@/lib/supabase-db'
+import { addPatient, updatePatient, deletePatient, archiveAndRemovePatient, PatientData } from '@/lib/supabase-db'
+import { logger } from '@/lib/logger'
 
 export async function handleAddPatient(formData: FormData) {
-  console.log('🚀 SERVER ACTION: handleAddPatient вызван')
+  logger.log('🚀 SERVER ACTION: handleAddPatient вызван')
   try {
     // Проверка наличия ФИО
     const rawName = formData.get('name')
@@ -12,24 +13,31 @@ export async function handleAddPatient(formData: FormData) {
       throw new Error('ФИО пациента обязательно для заполнения')
     }
 
-    const patientData: PatientData = {
-      ФИО: formData.get('name') as string, // Маппинг 'name' из формы в 'ФИО' для Supabase
-      Телефон: formData.get('phone') as string,
-      Комментарии: formData.get('comments') as string,
-      'Дата записи': formData.get('date') as string,
-      'Время записи': formData.get('time') as string,
-      Статус: (formData.get('status') as string) || 'Ожидает',
-      Доктор: formData.get('doctor') as string,
-      Зубы: formData.get('teeth') as string,
-      Медсестра: formData.get('nurse') as string,
-      'Дата рождения пациента': formData.get('birthDate') as string,
+    // Helper function to get form value or undefined if empty
+    const getFormValue = (key: string): string | undefined => {
+      const value = formData.get(key) as string
+      return value && value.trim() !== '' ? value : undefined
     }
 
-    console.log('DEBUG: Processed patientData:', patientData)
+    const patientData: PatientData = {
+      ФИО: formData.get('name') as string, // Маппинг 'name' из формы в 'ФИО' для Supabase
+      Телефон: getFormValue('phone'),
+      Комментарии: getFormValue('comments'),
+      'Дата записи': getFormValue('date'),
+      'Время записи': getFormValue('time'),
+      Статус: getFormValue('status') || 'Ожидает',
+      Доктор: getFormValue('doctor'),
+      Зубы: getFormValue('teeth'),
+      Медсестра: getFormValue('nurse'),
+      'Дата рождения пациента': getFormValue('birthDate'),
+      created_by_email: getFormValue('created_by_email'),
+    }
+
+    logger.log('DEBUG: Processed patientData:', patientData)
 
     // Валидация обязательных полей на сервере
     if (!patientData.ФИО?.trim()) {
-      console.error('DEBUG: ФИО validation failed:', {
+      logger.error('DEBUG: ФИО validation failed:', {
         ФИО: patientData.ФИО,
         trimmed: patientData.ФИО?.trim(),
         length: patientData.ФИО?.trim().length
@@ -44,7 +52,7 @@ export async function handleAddPatient(formData: FormData) {
 
     return { success: true }
   } catch (error) {
-    console.error('Ошибка при добавлении пациента:', error)
+    logger.error('Ошибка при добавлении пациента:', error)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Произошла ошибка при добавлении пациента' 
@@ -52,34 +60,42 @@ export async function handleAddPatient(formData: FormData) {
   }
 }
 
-export async function handleUpdatePatient(patientId: string | number, formData: FormData) {
+export async function handleUpdatePatient(patientId: string | number, formData: FormData, changedByEmail?: string) {
   try {
-    const patientData: PatientData = {
-      ФИО: formData.get('name') as string,
-      Телефон: formData.get('phone') as string,
-      Комментарии: formData.get('comments') as string,
-      'Дата записи': formData.get('date') as string,
-      'Время записи': formData.get('time') as string,
-      Статус: formData.get('status') as string,
-      Доктор: formData.get('doctor') as string,
-      Зубы: formData.get('teeth') as string,
-      Медсестра: formData.get('nurse') as string,
-      'Дата рождения пациента': formData.get('birthDate') as string,
+    // Helper function to get form value or undefined if empty
+    const getFormValue = (key: string): string | undefined => {
+      const value = formData.get(key) as string
+      return value && value.trim() !== '' ? value : undefined
     }
 
-    console.log('📝 HANDLE UPDATE: Начинаем обновление пациента');
-    console.log('📝 HANDLE UPDATE: ID:', patientId, 'тип:', typeof patientId);
-    console.log('📝 HANDLE UPDATE: Данные из формы:', patientData);
+    const patientData: PatientData = {
+      ФИО: formData.get('name') as string,
+      Телефон: getFormValue('phone'),
+      Комментарии: getFormValue('comments'),
+      'Дата записи': getFormValue('date'),
+      'Время записи': getFormValue('time'),
+      Статус: getFormValue('status'),
+      Доктор: getFormValue('doctor'),
+      Зубы: getFormValue('teeth'),
+      Медсестра: getFormValue('nurse'),
+      'Дата рождения пациента': getFormValue('birthDate'),
+      created_by_email: getFormValue('created_by_email'),
+    }
 
-    await updatePatient(patientId, patientData)
+    logger.log('📝 HANDLE UPDATE: Начинаем обновление пациента');
+    logger.log('📝 HANDLE UPDATE: ID:', patientId, 'тип:', typeof patientId);
+    logger.log('📝 HANDLE UPDATE: Данные из формы:', patientData);
 
-    console.log('✅ HANDLE UPDATE: Обновление успешно завершено');
+    await updatePatient(String(patientId), patientData, changedByEmail)
+
+    logger.log('✅ HANDLE UPDATE: Обновление успешно завершено');
     revalidatePath('/patients')
     revalidatePath('/calendar')
+    revalidatePath('/patients/changes')
 
     return { success: true }
   } catch (error) {
-    console.error('❌ HANDLE UPDATE: Ошибка при обновлении пациента:', error)
+    logger.error('❌ HANDLE UPDATE: Ошибка при обновлении пациента:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Произошла ошибка при обновлении пациента'
@@ -87,15 +103,15 @@ export async function handleUpdatePatient(patientId: string | number, formData: 
   }
 }
 
-export async function handleDeletePatient(patientId: string | number) {
+export async function handleDeletePatient(patientId: string | number, deletedByEmail: string) {
   try {
-    await deletePatient(patientId)
+    await archiveAndRemovePatient(String(patientId), deletedByEmail)
     
     revalidatePath('/patients')
     
     return { success: true }
   } catch (error) {
-    console.error('Ошибка при удалении пациента:', error)
+    logger.error('Ошибка при удалении пациента:', error)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Произошла ошибка при удалении пациента' 

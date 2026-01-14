@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export function middleware(request: NextRequest) {
-  const authCookie = request.cookies.get('denta_auth');
-  console.log('Path:', request.nextUrl.pathname, 'Auth:', !!authCookie);
   // Проверяем, является ли запрос к защищенным маршрутам
   const protectedPaths = ['/patients', '/calendar', '/new']
   const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))

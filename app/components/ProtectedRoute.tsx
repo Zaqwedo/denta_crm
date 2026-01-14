@@ -13,7 +13,10 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter()
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    // Если мы в процессе авторизации через Google, не редиректим
+    const isGoogleCallback = window.location.search.includes('google_auth=success')
+    
+    if (!isLoading && !isAuthenticated && !isGoogleCallback) {
       router.push('/login')
     }
   }, [isAuthenticated, isLoading, router])
@@ -30,11 +33,13 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     )
   }
 
-  // Если не авторизован, не показываем контент
-  if (!isAuthenticated) {
+  // Если не авторизован, не показываем контент, КРОМЕ случая Google Callback
+  const isGoogleCallback = typeof window !== 'undefined' && window.location.search.includes('google_auth=success')
+  
+  if (!isAuthenticated && !isGoogleCallback) {
     return null
   }
 
-  // Если авторизован, показываем защищенный контент
+  // Если авторизован или идет процесс Google Callback, показываем защищенный контент
   return <>{children}</>
 }
