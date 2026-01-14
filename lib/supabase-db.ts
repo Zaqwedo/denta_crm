@@ -30,7 +30,15 @@ export async function getPatients(): Promise<PatientData[]> {
 
     if (error) {
       logger.error('Ошибка при получении данных пациентов из Supabase:', error);
-      throw new Error(`Ошибка Supabase: ${error.message}`);
+      
+      // Более детальная обработка ошибок
+      if (error.message.includes('fetch failed') || error.message.includes('network')) {
+        throw new Error(`Ошибка подключения к Supabase. Проверьте NEXT_PUBLIC_SUPABASE_URL: ${error.message}`);
+      } else if (error.message.includes('Invalid API key') || error.message.includes('JWT')) {
+        throw new Error(`Неверный API ключ Supabase. Проверьте NEXT_PUBLIC_SUPABASE_ANON_KEY: ${error.message}`);
+      } else {
+        throw new Error(`Ошибка Supabase: ${error.message}`);
+      }
     }
 
     // Supabase возвращает массив объектов, каждый из которых соответствует строке таблицы
@@ -39,7 +47,14 @@ export async function getPatients(): Promise<PatientData[]> {
 
   } catch (error) {
     logger.error('Ошибка при получении данных пациентов:', error);
-    throw error;
+    
+    // Если это уже наша ошибка, пробрасываем как есть
+    if (error instanceof Error && error.message.startsWith('Ошибка')) {
+      throw error;
+    }
+    
+    // Иначе оборачиваем в понятное сообщение
+    throw new Error(`Ошибка при загрузке пациентов: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

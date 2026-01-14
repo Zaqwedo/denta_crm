@@ -5,17 +5,39 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 // Проверяем наличие переменных
-// Если переменные не установлены, создаем заглушку (для случаев когда Supabase не нужен, например для бота)
 if (!supabaseUrl || !supabaseAnonKey) {
-  // Только в development режиме показываем ошибку
-  if (process.env.NODE_ENV === 'development' && typeof window === 'undefined') {
-    // В server-side development показываем предупреждение, но не падаем
-    console.warn('⚠️  Supabase not configured. Some features may not work.')
+  const errorMsg = '⚠️  Supabase не настроен: отсутствуют переменные окружения NEXT_PUBLIC_SUPABASE_URL или NEXT_PUBLIC_SUPABASE_ANON_KEY'
+  
+  if (typeof window === 'undefined') {
+    // Server-side
+    console.error(errorMsg)
+    console.error('URL:', supabaseUrl ? '✅ установлен' : '❌ отсутствует')
+    console.error('Key:', supabaseAnonKey ? '✅ установлен' : '❌ отсутствует')
+  } else {
+    // Client-side
+    console.error(errorMsg)
+  }
+  
+  // В production не падаем, но логируем ошибку
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Приложение будет работать с ограниченной функциональностью')
   }
 }
 
-// Создаем клиент (даже если переменные не установлены - для совместимости)
+// Валидация URL
+if (supabaseUrl && !supabaseUrl.startsWith('http')) {
+  console.error('❌ NEXT_PUBLIC_SUPABASE_URL должен начинаться с http:// или https://')
+  console.error('Текущее значение:', supabaseUrl.substring(0, 20) + '...')
+}
+
+// Создаем клиент
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
 )
