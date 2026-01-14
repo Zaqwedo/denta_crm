@@ -30,6 +30,14 @@ if (supabaseUrl && !supabaseUrl.startsWith('http')) {
   console.error('Текущее значение:', supabaseUrl.substring(0, 20) + '...')
 }
 
+// Логируем информацию о конфигурации (только в development или при ошибках)
+if (process.env.NODE_ENV === 'development' || !supabaseUrl || !supabaseAnonKey) {
+  console.log('🔧 Supabase Configuration:')
+  console.log('  URL:', supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : '❌ NOT SET')
+  console.log('  Key:', supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : '❌ NOT SET')
+  console.log('  Environment:', process.env.NODE_ENV)
+}
+
 // Создаем клиент
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
@@ -38,6 +46,12 @@ export const supabase = createClient(
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+    // Добавляем опции для лучшей обработки ошибок
+    global: {
+      headers: {
+        'x-client-info': 'denta-crm@1.0.0',
+      },
     },
   }
 )
