@@ -61,6 +61,54 @@ export function GoogleAuthHandler() {
 
       handleAuth()
     }
+
+    // Обработка Yandex
+    const yandexAuth = searchParams.get('yandex_auth')
+    const yandexUserParam = searchParams.get('user')
+
+    if (yandexAuth === 'success' && yandexUserParam) {
+      const handleYandexAuth = async () => {
+        try {
+          console.log('🔄 YandexAuthHandler: Начинаю обработку данных пользователя')
+          const userData = JSON.parse(yandexUserParam)
+
+          // Устанавливаем сессию Supabase для RLS
+          await supabase.auth.signInAnonymously({
+            options: {
+              data: {
+                email: userData.username || `yandex_${userData.id}@yandex.ru`,
+                full_name: userData.first_name + ' ' + (userData.last_name || ''),
+                avatar_url: userData.photo_url,
+              }
+            }
+          })
+
+          login({
+            id: userData.id,
+            first_name: userData.first_name || 'User',
+            last_name: userData.last_name || '',
+            username: userData.username || `yandex_${userData.id}`,
+            photo_url: userData.photo_url || '',
+          }, 'yandex')
+
+          console.log('✅ YandexAuthHandler: Логин выполнен, очищаю URL')
+
+          // Очищаем URL
+          const url = new URL(window.location.href)
+          url.searchParams.delete('yandex_auth')
+          url.searchParams.delete('user')
+          window.history.replaceState({}, '', url.pathname)
+
+          setTimeout(() => {
+            router.refresh()
+          }, 100)
+        } catch (error) {
+          console.error('❌ YandexAuthHandler error:', error)
+        }
+      }
+
+      handleYandexAuth()
+    }
   }, [searchParams, login, router])
 
   return null
