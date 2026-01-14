@@ -1,6 +1,14 @@
 import { NextResponse } from 'next/server'
+import { checkAuthAppRouter, unauthorizedResponse } from '@/lib/auth-check'
 
 export async function GET() {
+  // Проверка авторизации
+  const isAuthenticated = await checkAuthAppRouter()
+  
+  if (!isAuthenticated) {
+    return unauthorizedResponse()
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
