@@ -18,44 +18,48 @@ export function GoogleAuthHandler() {
     const userParam = searchParams.get('user')
 
     if (googleAuth === 'success' && userParam) {
-      try {
-        console.log('🔄 GoogleAuthHandler: Начинаю обработку данных пользователя')
-        const userData = JSON.parse(userParam)
-        
-        // Устанавливаем сессию Supabase для RLS
-        await supabase.auth.signInAnonymously({
-          options: {
-            data: {
-              email: userData.email || userData.username,
-              full_name: userData.first_name + ' ' + (userData.last_name || ''),
-              avatar_url: userData.photo_url,
+      const handleAuth = async () => {
+        try {
+          console.log('🔄 GoogleAuthHandler: Начинаю обработку данных пользователя')
+          const userData = JSON.parse(userParam)
+          
+          // Устанавливаем сессию Supabase для RLS
+          await supabase.auth.signInAnonymously({
+            options: {
+              data: {
+                email: userData.email || userData.username,
+                full_name: userData.first_name + ' ' + (userData.last_name || ''),
+                avatar_url: userData.photo_url,
+              }
             }
-          }
-        })
+          })
 
-        login({
-          id: userData.id || Date.now(),
-          first_name: userData.first_name || 'User',
-          last_name: userData.last_name || '',
-          username: userData.username || userData.email || '',
-          photo_url: userData.photo_url || '',
-        }, 'email')
+          login({
+            id: userData.id || Date.now(),
+            first_name: userData.first_name || 'User',
+            last_name: userData.last_name || '',
+            username: userData.username || userData.email || '',
+            photo_url: userData.photo_url || '',
+          }, 'email')
 
-        console.log('✅ GoogleAuthHandler: Логин выполнен, очищаю URL')
-        
-        // Очищаем URL через window.history, чтобы не дергать лишний раз роутер
-        const url = new URL(window.location.href)
-        url.searchParams.delete('google_auth')
-        url.searchParams.delete('user')
-        window.history.replaceState({}, '', url.pathname)
-        
-        // Принудительно обновляем роутер через небольшой таймаут
-        setTimeout(() => {
-          router.refresh()
-        }, 100)
-      } catch (error) {
-        console.error('❌ GoogleAuthHandler error:', error)
+          console.log('✅ GoogleAuthHandler: Логин выполнен, очищаю URL')
+          
+          // Очищаем URL через window.history, чтобы не дергать лишний раз роутер
+          const url = new URL(window.location.href)
+          url.searchParams.delete('google_auth')
+          url.searchParams.delete('user')
+          window.history.replaceState({}, '', url.pathname)
+          
+          // Принудительно обновляем роутер через небольшой таймаут
+          setTimeout(() => {
+            router.refresh()
+          }, 100)
+        } catch (error) {
+          console.error('❌ GoogleAuthHandler error:', error)
+        }
       }
+
+      handleAuth()
     }
   }, [searchParams, login, router])
 
