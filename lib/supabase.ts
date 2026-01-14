@@ -61,6 +61,7 @@ export const supabase = createClient(
  * Необходимо вызывать перед запросами к БД в server-side коде
  */
 let anonymousSessionPromise: Promise<void> | null = null
+let sessionChecked = false
 
 export async function ensureAnonymousSession(): Promise<void> {
   // Если сессия уже устанавливается, ждем её
@@ -68,10 +69,13 @@ export async function ensureAnonymousSession(): Promise<void> {
     return anonymousSessionPromise
   }
 
-  // Проверяем, есть ли уже активная сессия
-  const { data: { session } } = await supabase.auth.getSession()
-  if (session) {
-    return Promise.resolve()
+  // Проверяем, есть ли уже активная сессия (только один раз)
+  if (!sessionChecked) {
+    sessionChecked = true
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) {
+      return Promise.resolve()
+    }
   }
 
   // Устанавливаем анонимную сессию
@@ -81,6 +85,8 @@ export async function ensureAnonymousSession(): Promise<void> {
       
       if (error) {
         console.error('❌ Ошибка установки анонимной сессии Supabase:', error)
+        // Сбрасываем promise при ошибке, чтобы можно было повторить
+        anonymousSessionPromise = null
         throw error
       }
       
@@ -89,10 +95,9 @@ export async function ensureAnonymousSession(): Promise<void> {
       }
     } catch (error) {
       console.error('❌ Критическая ошибка: не удалось установить анонимную сессию Supabase')
-      throw error
-    } finally {
-      // Сбрасываем promise после завершения
+      // Сбрасываем promise при ошибке
       anonymousSessionPromise = null
+      throw error
     }
   })()
 
