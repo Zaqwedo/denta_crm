@@ -89,16 +89,22 @@ export function GoogleAuthHandler() {
       const handleYandexAuth = async () => {
         try {
           console.log('🔄 YandexAuthHandler: Начинаю обработку данных пользователя')
+          console.log('🔄 YandexAuthHandler: userData:', userData)
           const userData = JSON.parse(yandexUserParam)
 
           // Проверяем разрешенные email для Yandex
           const userEmail = userData.email || userData.username
+          console.log('🔄 YandexAuthHandler: userEmail:', userEmail)
+          console.log('🔄 YandexAuthHandler: ALLOWED_YANDEX_EMAILS:', ALLOWED_YANDEX_EMAILS)
+          
           if (ALLOWED_YANDEX_EMAILS.length > 0 && !ALLOWED_YANDEX_EMAILS.includes(userEmail)) {
             console.error('❌ YandexAuthHandler: Email не в списке разрешенных:', userEmail)
             // Перенаправляем на login с ошибкой
             window.location.href = '/login?error=yandex_email_not_allowed'
             return
           }
+          
+          console.log('✅ YandexAuthHandler: Email разрешен, продолжаем авторизацию')
 
           // Устанавливаем сессию Supabase для RLS
           await supabase.auth.signInAnonymously({
