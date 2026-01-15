@@ -1,6 +1,6 @@
 export const DOCTORS = [
   "Карнаухов В.А.",
-  "Абасова Т. М.",
+  "Абасова Т.М.",
 ];
 
 export const NURSES = [

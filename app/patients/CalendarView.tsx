@@ -283,7 +283,7 @@ export function CalendarView() {
 
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState(1) // 0: День, 1: Неделя, 2: Месяц
+  const [viewMode, setViewMode] = useState(2) // 0: День, 1: Неделя, 2: Месяц (по умолчанию Месяц)
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   useEffect(() => {

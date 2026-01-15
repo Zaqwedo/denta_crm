@@ -123,7 +123,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
         return initialPatient.date
       })() : ''
 
-      setFormData({
+      const newFormData = {
         name: initialPatient.name || '',
         phone: initialPatient.phone || '',
         date: newFormattedDate,
@@ -134,7 +134,20 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
         birthDate: initialPatient.birthDate || '',
         teeth: initialPatient.teeth || '',
         nurse: initialPatient.nurse || '',
-      })
+      }
+
+      // Отладочное логирование при обновлении
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 PatientViewClient: Обновление formData:', {
+          'initialPatient.doctor': initialPatient.doctor,
+          'newFormData.doctor': newFormData.doctor,
+          'doctor isEmpty': newFormData.doctor === '',
+          'doctor isNull': initialPatient.doctor === null,
+          'doctor isUndefined': initialPatient.doctor === undefined,
+        })
+      }
+
+      setFormData(newFormData)
     }
   }, [initialPatient, isEditMode])
 
