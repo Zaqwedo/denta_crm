@@ -46,7 +46,7 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-lg p-8">
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push('/patients')}
             className="flex items-center gap-2 mb-6 text-gray-600 hover:text-gray-900 transition-colors"
           >
             <svg
@@ -61,7 +61,7 @@ export default function AdminLoginPage() {
             >
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Назад
+            Назад к списку пациентов
           </button>
           <h1 className="text-3xl font-bold text-gray-900 mb-2 text-center">
             Админ-панель

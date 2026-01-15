@@ -85,7 +85,7 @@ export default function AdminDashboard() {
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/login', { method: 'DELETE' })
-      router.push('/admin')
+      router.push('/patients')
     } catch (err) {
       console.error('Logout error:', err)
     }
@@ -291,21 +291,9 @@ export default function AdminDashboard() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Админ-панель</h1>
-              <p className="text-gray-600">Управление данными приложения</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all"
-            >
-              Выйти
-            </button>
-          </div>
           <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all"
+            onClick={() => router.push('/patients')}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all mb-4"
           >
             <svg
               width="20"
@@ -319,8 +307,12 @@ export default function AdminDashboard() {
             >
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Назад
+            Назад к списку пациентов
           </button>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Админ-панель</h1>
+            <p className="text-gray-600">Управление данными приложения</p>
+          </div>
         </div>
 
         {/* Messages */}
