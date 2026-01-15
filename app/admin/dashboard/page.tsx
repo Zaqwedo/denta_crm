@@ -189,6 +189,39 @@ export default function AdminDashboard() {
     }
   }
 
+  // Автоматическое определение провайдера по домену email
+  const detectProviderFromEmail = (email: string): 'google' | 'yandex' | 'email' => {
+    if (!email || !email.includes('@')) {
+      return 'google' // значение по умолчанию
+    }
+
+    const domain = email.toLowerCase().split('@')[1]
+    
+    // Google домены
+    if (domain === 'gmail.com' || domain === 'googlemail.com') {
+      return 'google'
+    }
+    
+    // Yandex домены
+    if (domain === 'yandex.ru' || domain === 'yandex.com' || domain === 'ya.ru') {
+      return 'yandex'
+    }
+    
+    // Для остальных доменов используем 'email'
+    return 'email'
+  }
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const email = e.target.value
+    setNewEmail(email)
+    
+    // Автоматически определяем провайдера по домену
+    if (email && email.includes('@')) {
+      const detectedProvider = detectProviderFromEmail(email)
+      setNewEmailProvider(detectedProvider)
+    }
+  }
+
   const handleAddEmail = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -402,7 +435,7 @@ export default function AdminDashboard() {
                 <input
                   type="email"
                   value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
+                  onChange={handleEmailChange}
                   placeholder="email@example.com"
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                   required
