@@ -55,6 +55,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
+# Yandex OAuth
+YANDEX_CLIENT_ID=your-yandex-client-id
+YANDEX_CLIENT_SECRET=your-yandex-client-secret
+YANDEX_REDIRECT_URI=https://your-domain.vercel.app/api/auth/yandex/callback
+
 # Application
 APP_URL=http://localhost:3000
 ```
@@ -73,7 +78,19 @@ APP_URL=http://localhost:3000
 4. Создайте OAuth 2.0 credentials
 5. Добавьте redirect URI: `http://localhost:3000/api/auth/google/callback`
 
-### 6. Запуск приложения
+### 6. Настройка Yandex OAuth
+
+1. Перейдите в [Yandex OAuth](https://oauth.yandex.com)
+2. Создайте новое приложение
+3. Выберите тип: "Веб-сервисы"
+4. Укажите название приложения
+5. Добавьте **Callback URI** (важно: должен точно совпадать):
+   - **Локальная разработка**: `http://localhost:3000/api/auth/yandex/callback`
+   - **Продакшн**: `https://ваш-домен.vercel.app/api/auth/yandex/callback`
+6. Скопируйте `Client ID` и `Client Secret`
+7. Добавьте переменную `YANDEX_REDIRECT_URI` в Vercel (продакшн URL)
+
+### 7. Запуск приложения
 ```bash
 npm run dev
 ```

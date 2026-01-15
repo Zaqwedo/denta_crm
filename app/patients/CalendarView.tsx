@@ -126,8 +126,8 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
             </button>
             <div className="text-center">
               <h1 className="text-lg font-semibold text-gray-900">
-                {weekDays[0].toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
-              </h1>
+              {weekDays[0].toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
+            </h1>
               <p className="text-xs text-gray-500 mt-0.5">{weekRange}</p>
             </div>
             <button
@@ -180,13 +180,13 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
                   </div>
                   <div className={`text-lg font-bold ${
                     isToday ? 'text-white' : 'text-gray-900'
-                  }`}>
+                }`}>
                     {day.getDate()}
-                  </div>
+                </div>
                 </button>
               )
             })}
-          </div>
+              </div>
           </div>
         </div>
 
@@ -217,15 +217,15 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
                       Сегодня
                     </span>
                   )}
-                </div>
+                  </div>
 
                 {/* Patients List for this day */}
                 <div className="space-y-3">
                   {dayPatients.map((patient) => {
                     const timeRange = formatTimeRange(patient.time)
                     return (
-                      <div
-                        key={patient.id}
+                            <div
+                              key={patient.id}
                         onClick={() => router.push(`/patients/${patient.id}`)}
                         className="flex items-start gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.98]"
                       >

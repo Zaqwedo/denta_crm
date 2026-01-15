@@ -64,10 +64,10 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
   }
 
   return (
-    <div
+      <div
       onClick={handleClick}
-      className="bg-white rounded-[20px] p-5 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
-    >
+        className="bg-white rounded-[20px] p-5 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
+      >
         <div className="flex justify-between items-start mb-2">
           <h2 className="text-xl font-semibold text-gray-900 leading-tight">
             {name}

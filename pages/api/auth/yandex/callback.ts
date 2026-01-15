@@ -1,5 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { logger } from '@/lib/logger'
 
 export default async function handler(
   req: NextApiRequest,
@@ -15,7 +14,7 @@ export default async function handler(
   }
 
   if (error) {
-    logger.error('Yandex OAuth error:', error)
+    console.error('Yandex OAuth error:', error)
     return res.redirect(`/login?error=${encodeURIComponent('Ошибка авторизации через Яндекс')}`)
   }
 
@@ -24,15 +23,16 @@ export default async function handler(
   }
 
   try {
-    // Определяем redirect URI
-    let baseUrl = process.env.APP_URL || process.env.VERCEL_URL
-    if (!baseUrl && req.headers.host) {
-      const protocol = req.headers['x-forwarded-proto'] || (req.headers.host.includes('localhost') ? 'http' : 'https')
-      baseUrl = `${protocol}://${req.headers.host}`
+    // Определяем redirect URI (должен точно совпадать с настройками в Яндекс OAuth)
+    let redirectUri: string
+
+    if (process.env.NODE_ENV === 'production') {
+      // В продакшене используем фиксированный URL из переменной окружения
+      redirectUri = process.env.YANDEX_REDIRECT_URI || 'https://your-domain.vercel.app/api/auth/yandex/callback'
+    } else {
+      // В разработке используем localhost
+      redirectUri = 'http://localhost:3000/api/auth/yandex/callback'
     }
-    if (!baseUrl) baseUrl = 'http://localhost:3000'
-    baseUrl = baseUrl.replace(/\/$/, '')
-    const redirectUri = `${baseUrl}/api/auth/yandex/callback`
 
     console.log('🔍 Yandex OAuth Callback Debug:')
     console.log('  - YANDEX_CLIENT_ID:', process.env.YANDEX_CLIENT_ID ? 'set' : 'NOT SET')
@@ -41,7 +41,7 @@ export default async function handler(
 
     // Проверяем наличие необходимых переменных
     if (!process.env.YANDEX_CLIENT_ID || !process.env.YANDEX_CLIENT_SECRET) {
-      logger.error('Yandex OAuth credentials not configured')
+      console.error('Yandex OAuth credentials not configured')
       return res.redirect('/login?error=yandex_oauth_not_configured')
     }
 
@@ -70,7 +70,7 @@ export default async function handler(
     const tokenData = await tokenResponse.json()
 
     if (!tokenResponse.ok) {
-      logger.error('Yandex token exchange error:', {
+      console.error('Yandex token exchange error:', {
         status: tokenResponse.status,
         statusText: tokenResponse.statusText,
         error: tokenData
@@ -107,7 +107,7 @@ export default async function handler(
     const userData = await userResponse.json()
 
     if (!userResponse.ok) {
-      logger.error('Yandex user info error:', userData)
+      console.error('Yandex user info error:', userData)
       console.error('❌ Yandex User info failed:')
       console.error('  - Status:', userResponse.status, userResponse.statusText)
       console.error('  - Response:', userData)
@@ -149,8 +149,7 @@ export default async function handler(
     return res.redirect(redirectUrl)
 
   } catch (error) {
-    logger.error('Yandex OAuth callback error:', error)
-    console.error('❌ Yandex OAuth callback error:', error)
+    console.error('Yandex OAuth callback error:', error)
     return res.redirect('/login?error=yandex_oauth_error')
   }
 }
