@@ -51,6 +51,18 @@ export default function LoginPage() {
           setError('Ошибка при получении данных пользователя Яндекс. Попробуйте войти через Яндекс еще раз.')
         } else if (errorParam === 'yandex_oauth_error') {
           setError('Ошибка авторизации через Яндекс. Попробуйте еще раз.')
+        } else if (errorParam === 'yandex_access_denied') {
+          setError('Доступ запрещен. Вы отменили авторизацию через Яндекс.')
+        } else if (errorParam === 'yandex_invalid_request') {
+          setError('Неверный запрос к Yandex OAuth. Проверьте настройки приложения.')
+        } else if (errorParam === 'yandex_unauthorized_client') {
+          setError('Неавторизованный клиент. Проверьте YANDEX_CLIENT_ID в настройках.')
+        } else if (errorParam === 'yandex_unsupported_response_type') {
+          setError('Неподдерживаемый тип ответа Yandex OAuth. Обратитесь к администратору.')
+        } else if (errorParam === 'yandex_invalid_scope') {
+          setError('Неверный scope для Yandex OAuth. Обратитесь к администратору.')
+        } else if (errorParam === 'yandex_email_not_allowed') {
+          setError('Доступ ограничен. Пожалуйста, обратитесь к администратору для добавления вашего Yandex аккаунта в список разрешенных пользователей.')
         } else {
           setError(decodeURIComponent(errorParam))
         }

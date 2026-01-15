@@ -4,10 +4,13 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { code, error } = req.query
+  const { code, error, error_description } = req.query
 
   console.log('--- Yandex Callback ---')
   console.log('Query params:', JSON.stringify(req.query))
+  console.log('  - code:', code ? 'present' : 'missing')
+  console.log('  - error:', error || 'none')
+  console.log('  - error_description:', error_description || 'none')
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -15,7 +18,25 @@ export default async function handler(
 
   if (error) {
     console.error('Yandex OAuth error:', error)
-    return res.redirect(`/login?error=${encodeURIComponent('Ошибка авторизации через Яндекс')}`)
+    console.error('Yandex OAuth error_description:', error_description)
+    
+    // Улучшенная обработка ошибок
+    let errorCode = 'yandex_oauth_error'
+    
+    // Специфичные ошибки от Yandex
+    if (error === 'access_denied') {
+      errorCode = 'yandex_access_denied'
+    } else if (error === 'invalid_request') {
+      errorCode = 'yandex_invalid_request'
+    } else if (error === 'unauthorized_client') {
+      errorCode = 'yandex_unauthorized_client'
+    } else if (error === 'unsupported_response_type') {
+      errorCode = 'yandex_unsupported_response_type'
+    } else if (error === 'invalid_scope') {
+      errorCode = 'yandex_invalid_scope'
+    }
+    
+    return res.redirect(`/login?error=${errorCode}`)
   }
 
   if (!code) {
