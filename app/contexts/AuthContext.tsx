@@ -4,12 +4,16 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 
-// Разрешенные Email адреса
-// Добавьте email адреса для ограничения доступа
+// Разрешенные Email адреса для ограничения доступа
 
 const ALLOWED_EMAILS: string[] = [
-  // Добавьте разрешенные email адреса
+  // Добавьте разрешенные email адреса для обычной авторизации
   // Например: 'admin@denta-crm.com'
+]
+
+const ALLOWED_YANDEX_EMAILS: string[] = [
+  // Добавьте разрешенные email адреса для Yandex авторизации
+  // Например: 'user@yandex.ru', 'admin@yandex.com'
 ]
 
 export interface User {
