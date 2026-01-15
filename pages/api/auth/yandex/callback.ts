@@ -23,7 +23,7 @@ export default async function handler(
   }
 
   try {
-    // Определяем redirect URI (должен точно совпадать с настройками в Яндекс OAuth)
+    // Определяем redirect URI (должен точно совпадать с настройками в Yandex OAuth)
     let redirectUri: string
 
     if (process.env.NODE_ENV === 'production') {
@@ -54,8 +54,7 @@ export default async function handler(
     })
 
     console.log('📤 Yandex Token exchange request:')
-    console.log('  - grant_type: authorization_code')
-    console.log('  - client_id:', process.env.YANDEX_CLIENT_ID)
+    console.log('  - client_id:', process.env.YANDEX_CLIENT_ID ? 'set' : 'NOT SET')
     console.log('  - redirect_uri:', redirectUri)
     console.log('  - code length:', (code as string)?.length || 0)
 
@@ -70,11 +69,6 @@ export default async function handler(
     const tokenData = await tokenResponse.json()
 
     if (!tokenResponse.ok) {
-      console.error('Yandex token exchange error:', {
-        status: tokenResponse.status,
-        statusText: tokenResponse.statusText,
-        error: tokenData
-      })
       console.error('❌ Yandex Token exchange failed:')
       console.error('  - Status:', tokenResponse.status, tokenResponse.statusText)
       console.error('  - Error:', tokenData)
@@ -93,8 +87,8 @@ export default async function handler(
 
     console.log('✅ Yandex Token received:', {
       access_token: tokenData.access_token ? 'present' : 'missing',
-      token_type: tokenData.token_type,
-      expires_in: tokenData.expires_in
+      expires_in: tokenData.expires_in,
+      token_type: tokenData.token_type
     })
 
     // Получаем информацию о пользователе
@@ -107,7 +101,6 @@ export default async function handler(
     const userData = await userResponse.json()
 
     if (!userResponse.ok) {
-      console.error('Yandex user info error:', userData)
       console.error('❌ Yandex User info failed:')
       console.error('  - Status:', userResponse.status, userResponse.statusText)
       console.error('  - Response:', userData)

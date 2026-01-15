@@ -23,12 +23,13 @@ export function GoogleAuthHandler() {
 
   useEffect(() => {
     if (!searchParams) return
-    
+
     const googleAuth = searchParams.get('google_auth')
+    const yandexAuth = searchParams.get('yandex_auth')
     const userParam = searchParams.get('user')
 
     if (googleAuth === 'success' && userParam) {
-      const handleAuth = async () => {
+      const handleGoogleAuth = async () => {
         try {
           console.log('🔄 GoogleAuthHandler: Начинаю обработку данных пользователя')
           const userData = JSON.parse(userParam)
@@ -62,13 +63,13 @@ export function GoogleAuthHandler() {
           }, 'google')
 
           console.log('✅ GoogleAuthHandler: Логин выполнен, очищаю URL')
-          
+
           // Очищаем URL через window.history, чтобы не дергать лишний раз роутер
           const url = new URL(window.location.href)
           url.searchParams.delete('google_auth')
           url.searchParams.delete('user')
           window.history.replaceState({}, '', url.pathname)
-          
+
           // Принудительно обновляем роутер через небольшой таймаут
           setTimeout(() => {
             router.refresh()
@@ -77,19 +78,14 @@ export function GoogleAuthHandler() {
           console.error('❌ GoogleAuthHandler error:', error)
         }
       }
-
-      handleAuth()
+      handleGoogleAuth()
     }
 
-    // Обработка Yandex
-    const yandexAuth = searchParams.get('yandex_auth')
-    const yandexUserParam = searchParams.get('user')
-
-    if (yandexAuth === 'success' && yandexUserParam) {
+    if (yandexAuth === 'success' && userParam) {
       const handleYandexAuth = async () => {
         try {
           console.log('🔄 YandexAuthHandler: Начинаю обработку данных пользователя')
-          const userData = JSON.parse(yandexUserParam)
+          const userData = JSON.parse(userParam)
 
           // Проверяем разрешенные email для Yandex
           const userEmail = userData.email || userData.username
@@ -134,7 +130,6 @@ export function GoogleAuthHandler() {
           console.error('❌ YandexAuthHandler error:', error)
         }
       }
-
       handleYandexAuth()
     }
   }, [searchParams, login, router])

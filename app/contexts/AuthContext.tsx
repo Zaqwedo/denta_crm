@@ -4,17 +4,12 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 
-// Разрешенные Email адреса для ограничения доступа
+// Разрешенные Email адреса
+// Добавьте email адреса для ограничения доступа
 
 const ALLOWED_EMAILS: string[] = [
-  // Добавьте разрешенные email адреса для обычной авторизации
+  // Добавьте разрешенные email адреса
   // Например: 'admin@denta-crm.com'
-]
-
-const ALLOWED_YANDEX_EMAILS: string[] = [
-  // Добавьте разрешенные email адреса для Yandex авторизации
-  // Например: 'user@yandex.ru', 'admin@yandex.com'
-    "vladosabramov@yandex.ru"
 ]
 
 export interface User {
@@ -29,7 +24,7 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (user: User, authType?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => void
+  login: (user: User, authType?: 'email') => void
   logout: () => void
 }
 
@@ -71,9 +66,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth()
   }, [])
 
-  const login = (userData: User, authType?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
+  const login = (userData: User, authType: 'email' = 'email') => {
     // Для демо режима принимаем любого пользователя
-    // В продакшене можно добавить проверки ALLOWED_EMAILS только для email входа
+    // В продакшене можно добавить проверки ALLOWED_EMAILS
     if (authType === 'email' && ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(userData.username || '')) {
       throw new Error('Доступ запрещен. Ваш email не в списке разрешенных.')
     }
@@ -83,7 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Сохраняем в localStorage с указанием типа авторизации
     localStorage.setItem('denta_user', JSON.stringify(userData))
     localStorage.setItem('denta_auth_timestamp', Date.now().toString())
-    localStorage.setItem('denta_auth_type', authType || 'email')
+    localStorage.setItem('denta_auth_type', authType)
   }
 
   const logout = async () => {

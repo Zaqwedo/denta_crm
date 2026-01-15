@@ -41,20 +41,6 @@ export default function LoginPage() {
           setError('Ошибка при получении данных пользователя. Попробуйте войти через Google еще раз.')
         } else if (errorParam === 'oauth_error') {
           setError('Ошибка авторизации через Google. Попробуйте еще раз.')
-        } else if (errorParam === 'yandex_oauth_not_configured') {
-          setError('Yandex OAuth не настроен. Проверьте переменные окружения YANDEX_CLIENT_ID и YANDEX_CLIENT_SECRET.')
-        } else if (errorParam === 'missing_code_yandex') {
-          setError(null) // Нормально - пользователь перешел на callback напрямую
-        } else if (errorParam === 'yandex_token_exchange_failed') {
-          setError('Ошибка при обмене кода авторизации Яндекс. Попробуйте войти через Яндекс еще раз.')
-        } else if (errorParam === 'yandex_user_info_failed') {
-          setError('Ошибка при получении данных пользователя Яндекс. Попробуйте войти через Яндекс еще раз.')
-        } else if (errorParam === 'yandex_oauth_error') {
-          setError('Ошибка авторизации через Яндекс. Попробуйте еще раз.')
-        } else if (errorParam === 'yandex_email_not_allowed') {
-          setError('Доступ ограничен. Пожалуйста, обратитесь к администратору для добавления вашего Yandex аккаунта в список разрешенных пользователей.')
-        } else if (errorParam === 'google_email_not_allowed') {
-          setError('Доступ ограничен. Пожалуйста, обратитесь к администратору для добавления вашего Google аккаунта в список разрешенных пользователей.')
         } else {
           setError(decodeURIComponent(errorParam))
         }
@@ -132,22 +118,6 @@ export default function LoginPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             <span>Войти через Google</span>
-          </button>
-
-          {/* Кнопка Yandex OAuth */}
-          <button
-            type="button"
-            onClick={() => {
-              try {
-                window.location.href = '/api/auth/yandex'
-              } catch (err) {
-                setError('Ошибка при переходе к авторизации Яндекс')
-                console.error('Yandex OAuth error:', err)
-              }
-            }}
-            className="w-full bg-[#FF0000] hover:bg-[#CC0000] text-white font-semibold py-4 rounded-xl transition-all flex items-center justify-center shadow-sm hover:shadow-md mb-3"
-          >
-            Войти через Яндекс
           </button>
 
           {/* Разделитель */}

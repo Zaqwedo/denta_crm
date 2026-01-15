@@ -11,16 +11,24 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     return res.redirect('/login?error=yandex_oauth_not_configured')
   }
 
-  // Определяем redirect URI (должен точно совпадать с настройками в Яндекс OAuth)
-  let redirectUri: string
+  // Определяем базовый URL
+  let baseUrl = process.env.APP_URL || process.env.VERCEL_URL
 
-  if (process.env.NODE_ENV === 'production') {
-    // В продакшене используем фиксированный URL из переменной окружения
-    redirectUri = process.env.YANDEX_REDIRECT_URI || 'https://your-domain.vercel.app/api/auth/yandex/callback'
-  } else {
-    // В разработке используем localhost
-    redirectUri = 'http://localhost:3000/api/auth/yandex/callback'
+  // Если нет в переменных, используем заголовки запроса
+  if (!baseUrl && req.headers.host) {
+    const protocol = req.headers['x-forwarded-proto'] || (req.headers.host.includes('localhost') ? 'http' : 'https')
+    baseUrl = `${protocol}://${req.headers.host}`
   }
+
+  // Если всё ещё нет, используем localhost
+  if (!baseUrl) {
+    baseUrl = 'http://localhost:3000'
+  }
+
+  // Убираем слеш в конце, если есть
+  baseUrl = baseUrl.replace(/\/$/, '')
+
+  const redirectUri = `${baseUrl}/api/auth/yandex/callback`
 
   console.log('🔍 Yandex OAuth Debug:')
   console.log('  - YANDEX_CLIENT_ID:', process.env.YANDEX_CLIENT_ID ? 'set' : 'NOT SET')
