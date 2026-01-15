@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { PatientForm } from './PatientForm'
+import { formatTime } from '@/lib/utils'
 
 // Встроенная SVG иконка X
 const XIcon = ({ size = 24, className = '' }: { size?: number; className?: string }) => (
@@ -169,7 +170,7 @@ export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onP
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-lg font-semibold text-gray-900 min-w-[70px] flex-shrink-0">
-                        {patient.time || 'Время не указано'}
+                        {formatTime(patient.time) || 'Время не указано'}
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">{patient.name}</div>

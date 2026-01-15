@@ -67,7 +67,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
     name,
     phone, // Показываем сырые данные из базы в режиме просмотра
     date: formattedDate,
-    time,
+    time: formatTime(time), // Форматируем время в HH:MM
     doctor,
     status,
     comments,
@@ -90,7 +90,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       name,
       phone, // Всегда начинаем с сырых данных из базы
       date: formattedDate,
-      time,
+      time: formatTime(time), // Форматируем время в HH:MM
       doctor,
       status,
       comments,

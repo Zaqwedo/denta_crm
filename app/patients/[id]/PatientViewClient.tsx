@@ -8,6 +8,7 @@ import { TabBar } from '../TabBar'
 import { ProtectedRoute } from '../../components/ProtectedRoute'
 import { PATIENT_STATUSES } from '../../../lib/constants'
 import { useConstants } from '../../hooks/useConstants'
+import { formatTime } from '@/lib/utils'
 
 interface PatientViewClientProps {
   patient: Record<string, any> | null
@@ -70,7 +71,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       name: initialPatient?.name || '',
       phone: initialPatient?.phone || '',
       date: formattedDate,
-      time: initialPatient?.time || '',
+      time: formatTime(initialPatient?.time) || '', // Форматируем время в HH:MM
       doctor: initialPatient?.doctor || '',
       status: initialPatient?.status || '',
       comments: initialPatient?.comments || '',
@@ -127,7 +128,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
         name: initialPatient.name || '',
         phone: initialPatient.phone || '',
         date: newFormattedDate,
-        time: initialPatient.time || '',
+        time: formatTime(initialPatient.time) || '', // Форматируем время в HH:MM
         doctor: initialPatient.doctor || '',
         status: initialPatient.status || '',
         comments: initialPatient.comments || '',

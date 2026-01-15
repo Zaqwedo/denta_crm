@@ -2,6 +2,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { formatTime } from '@/lib/utils'
 
 interface PatientCardProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
@@ -14,7 +15,7 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
   // Доступ к полям напрямую из объекта patient
   const { id, name, phone, date, time, doctor, status } = patient
 
-  const formattedTime = time?.substring(0, 5) // "HH:MM"
+  const formattedTime = formatTime(time) // "HH:MM"
   const formattedPhone = phone ? `+${phone.replace(/\D/g, '').replace(/(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/, '$1 ($2) $3-$4-$5')}` : 'Не указан'
 
   const handleClick = () => {

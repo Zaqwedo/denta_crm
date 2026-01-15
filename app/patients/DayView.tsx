@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { formatTime } from '@/lib/utils'
 
 interface Patient {
   id: string
@@ -147,7 +148,7 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
                     <div className="flex items-center gap-3">
                       <div className={`w-3 h-3 rounded-full ${getAppointmentColor(patient.status).includes('green') ? 'bg-green-500' : getAppointmentColor(patient.status).includes('yellow') ? 'bg-yellow-500' : getAppointmentColor(patient.status).includes('red') ? 'bg-red-500' : 'bg-blue-500'}`}></div>
                       <span className="text-lg font-semibold text-gray-900">
-                        {patient.time || 'Время не указано'}
+                        {formatTime(patient.time) || 'Время не указано'}
                       </span>
                     </div>
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${getAppointmentColor(patient.status)}`}>

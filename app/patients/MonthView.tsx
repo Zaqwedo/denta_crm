@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { DailyPreviewModal } from './DailyPreviewModal'
+import { formatTime } from '@/lib/utils'
 
 interface Patient {
   id: string
@@ -214,7 +215,7 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
                         <div
                           key={patient.id}
                           className={`w-2 h-2 rounded-full ${getAppointmentColor(patient.status)}`}
-                          title={`${patient.name} - ${patient.time || 'Время не указано'}`}
+                          title={`${patient.name} - ${formatTime(patient.time) || 'Время не указано'}`}
                         ></div>
                       ))}
                       {dayPatients.length > 3 && (

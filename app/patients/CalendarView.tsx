@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getPatients } from '@/lib/supabase-db'
+import { formatTime } from '@/lib/utils'
 import { SegmentedControl } from './SegmentedControl'
 import { DayView } from './DayView'
 import { MonthView } from './MonthView'
@@ -87,17 +88,19 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
 
   const formatTimeRange = (time: string) => {
     if (!time) return ''
-    const [hours, minutes] = time.split(':')
+    // Используем formatTime для получения времени в формате HH:MM
+    const timeStr = formatTime(time)
+    const [hours, minutes] = timeStr.split(':')
     const startHour = parseInt(hours) || 0
     const startMin = parseInt(minutes) || 0
     const endHour = startHour
     const endMin = startMin + 30 // Предполагаем 30 минут длительность
     
-    const formatTime = (h: number, m: number) => {
+    const formatTimeLocal = (h: number, m: number) => {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
     }
     
-    return `${formatTime(startHour, startMin)} - ${formatTime(endHour, endMin >= 60 ? endMin - 60 : endMin)}`
+    return `${formatTimeLocal(startHour, startMin)} - ${formatTimeLocal(endHour, endMin >= 60 ? endMin - 60 : endMin)}`
   }
 
   const getDayName = (date: Date) => {
