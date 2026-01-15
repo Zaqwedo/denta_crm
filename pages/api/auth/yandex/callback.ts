@@ -143,7 +143,16 @@ export default async function handler(
       photo_url: userData.default_avatar_id ? `https://avatars.yandex.net/get-yapic/${userData.default_avatar_id}/islands-200` : '',
     }
 
-    const redirectUrl = `${baseUrl}/patients?yandex_auth=success&user=${encodeURIComponent(JSON.stringify(userInfo))}`
+    // Определяем URL для редиректа (не обязательно должен совпадать с OAuth redirect URI)
+    let redirectBaseUrl = process.env.APP_URL || process.env.VERCEL_URL
+    if (!redirectBaseUrl && req.headers.host) {
+      const protocol = req.headers['x-forwarded-proto'] || (req.headers.host.includes('localhost') ? 'http' : 'https')
+      redirectBaseUrl = `${protocol}://${req.headers.host}`
+    }
+    if (!redirectBaseUrl) redirectBaseUrl = 'http://localhost:3000'
+    redirectBaseUrl = redirectBaseUrl.replace(/\/$/, '')
+
+    const redirectUrl = `${redirectBaseUrl}/patients?yandex_auth=success&user=${encodeURIComponent(JSON.stringify(userInfo))}`
     console.log('🔄 Redirecting to:', redirectUrl)
 
     return res.redirect(redirectUrl)
