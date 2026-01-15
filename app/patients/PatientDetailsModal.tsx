@@ -7,6 +7,8 @@ import { ToastManager } from './Toast'
 import { useAuth } from '../contexts/AuthContext'
 import { PATIENT_STATUSES } from '../../lib/constants'
 import { useConstants } from '../hooks/useConstants'
+import { formatTime } from '@/lib/utils'
+import { ConfirmChangesModal } from './ConfirmChangesModal'
 
 interface PatientDetailsModalProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
@@ -18,10 +20,11 @@ interface PatientDetailsModalProps {
 export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: PatientDetailsModalProps) {
   const { user } = useAuth()
   const { doctors, nurses } = useConstants()
-  const [isEditMode, setIsEditMode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [pendingClose, setPendingClose] = useState(false)
   const router = useRouter()
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -63,18 +66,21 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
     return phoneStr
   }
 
-  const [formData, setFormData] = useState({
+  // Исходные данные для сравнения (будет обновляться в useEffect)
+  const [initialData, setInitialData] = useState({
     name,
-    phone, // Показываем сырые данные из базы в режиме просмотра
+    phone,
     date: formattedDate,
-    time: formatTime(time), // Форматируем время в HH:MM
-    doctor,
-    status,
-    comments,
-    birthDate,
-    teeth,
-    nurse,
+    time: formatTime(time),
+    doctor: doctor || '',
+    status: status || '',
+    comments: comments || '',
+    birthDate: birthDate || '',
+    teeth: teeth || '',
+    nurse: nurse || '',
   })
+
+  const [formData, setFormData] = useState(initialData)
 
   useEffect(() => {
     if (isOpen && nameInputRef.current) {
@@ -86,42 +92,117 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
 
   useEffect(() => {
     // Обновляем formData при изменении patient или открытии модального окна
-    setFormData({
+    const newInitialData = {
       name,
-      phone, // Всегда начинаем с сырых данных из базы
+      phone,
       date: formattedDate,
-      time: formatTime(time), // Форматируем время в HH:MM
-      doctor,
-      status,
-      comments,
-      birthDate,
-      teeth,
-      nurse,
-    })
-    // Сбрасываем режим редактирования при открытии модального окна
-    setIsEditMode(false)
+      time: formatTime(time),
+      doctor: doctor || '',
+      status: status || '',
+      comments: comments || '',
+      birthDate: birthDate || '',
+      teeth: teeth || '',
+      nurse: nurse || '',
+    }
+    setInitialData(newInitialData)
+    setFormData(newInitialData)
     setError(null)
+    setShowConfirmModal(false)
+    setPendingClose(false)
   }, [patient, isOpen, name, phone, formattedDate, time, doctor, status, comments, birthDate, teeth, nurse])
 
-  // Отдельный useEffect для переключения форматирования телефона при изменении режима
-  useEffect(() => {
-    setFormData(prev => ({
-      ...prev,
-      phone: isEditMode ? formatPhoneForDisplay(phone) : phone
-    }))
-  }, [isEditMode, phone])
+  // Функция для проверки наличия изменений
+  const hasChanges = () => {
+    return (
+      formData.name !== initialData.name ||
+      formData.phone !== initialData.phone ||
+      formData.date !== initialData.date ||
+      formData.time !== initialData.time ||
+      formData.doctor !== initialData.doctor ||
+      formData.status !== initialData.status ||
+      formData.comments !== initialData.comments ||
+      formData.birthDate !== initialData.birthDate ||
+      formData.teeth !== initialData.teeth ||
+      formData.nurse !== initialData.nurse
+    )
+  }
+
+  // Функция для получения списка изменений
+  const getChanges = () => {
+    const changes: Array<{ field: string; oldValue: string; newValue: string }> = []
+    const fieldNames: Record<string, string> = {
+      name: 'ФИО',
+      phone: 'Телефон',
+      date: 'Дата приема',
+      time: 'Время',
+      doctor: 'Доктор',
+      status: 'Статус',
+      comments: 'Комментарии',
+      birthDate: 'Дата рождения',
+      teeth: 'Зубы',
+      nurse: 'Медсестра',
+    }
+
+    Object.keys(initialData).forEach((key) => {
+      const typedKey = key as keyof typeof initialData
+      if (formData[typedKey] !== initialData[typedKey]) {
+        changes.push({
+          field: fieldNames[typedKey] || key,
+          oldValue: String(initialData[typedKey] || '(пусто)'),
+          newValue: String(formData[typedKey] || '(пусто)'),
+        })
+      }
+    })
+
+    return changes
+  }
+
+  // Обработчик закрытия с проверкой изменений
+  const handleClose = () => {
+    if (hasChanges()) {
+      setPendingClose(true)
+      setShowConfirmModal(true)
+    } else {
+      onClose()
+    }
+  }
+
+  // Подтверждение применения изменений
+  const handleConfirmChanges = async () => {
+    setShowConfirmModal(false)
+    setPendingClose(false)
+    await handleSave()
+  }
+
+  // Отмена изменений
+  const handleCancelChanges = () => {
+    setShowConfirmModal(false)
+    if (pendingClose) {
+      setPendingClose(false)
+      onClose()
+    }
+  }
 
   if (!isOpen) return null
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleSave() {
     setIsSubmitting(true)
     setError(null)
 
-    const formDataObj = new FormData(e.currentTarget)
+    const formDataObj = new FormData()
+    formDataObj.append('name', formData.name)
+    formDataObj.append('phone', formData.phone)
+    formDataObj.append('date', formData.date)
+    formDataObj.append('time', formData.time)
+    formDataObj.append('doctor', formData.doctor)
+    formDataObj.append('status', formData.status)
+    formDataObj.append('comments', formData.comments)
+    formDataObj.append('birthDate', formData.birthDate)
+    formDataObj.append('teeth', formData.teeth)
+    formDataObj.append('nurse', formData.nurse)
 
     // Форматируем телефон перед отправкой
-    const phoneInput = formDataObj.get('phone') as string
+    const phoneInput = formData.phone
     const phoneDigits = phoneInput.replace(/\D/g, '')
     const finalFormattedPhone = phoneDigits.startsWith('8')
       ? `+7${phoneDigits.slice(1)}`
@@ -135,13 +216,6 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       const idToUpdate = patientId || rowIndex;
       if (!idToUpdate) {
         throw new Error('Не удалось определить ID пациента для обновления.');
-      }
-
-      console.log('📤 MODAL SUBMIT: Отправляем данные на сервер');
-      console.log('📤 MODAL SUBMIT: ID для обновления:', idToUpdate);
-      console.log('📤 MODAL SUBMIT: FormData содержимое:');
-      for (const [key, value] of formDataObj.entries()) {
-        console.log(`📤 MODAL SUBMIT: ${key}: "${value}"`);
       }
 
       const result = await handleUpdatePatient(idToUpdate, formDataObj)
@@ -161,6 +235,11 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    await handleSave()
   }
 
   async function handleDelete() {
@@ -210,10 +289,10 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
             style={{ paddingTop: 'max(1rem, calc(1rem + env(safe-area-inset-top)))' }}
           >
             <h2 className="text-xl font-bold text-gray-900">
-              {isEditMode ? 'Редактирование пациента' : 'Просмотр пациента'}
+              Редактирование пациента
             </h2>
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="text-gray-400 hover:text-gray-600 text-2xl"
             >
               ×
@@ -235,12 +314,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -254,12 +328,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 required
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="+7 (999) 123-45-67"
               />
             </div>
@@ -274,12 +343,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 required
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -293,12 +357,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 value={formData.time}
                 onChange={(e) => setFormData({ ...formData, time: e.target.value })}
                 required
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -310,12 +369,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 name="status"
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                disabled={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 {PATIENT_STATUSES.map(status => (
                   <option key={status} value={status}>{status}</option>
@@ -331,12 +385,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 name="doctor"
                 value={formData.doctor}
                 onChange={(e) => setFormData({ ...formData, doctor: e.target.value })}
-                disabled={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Выберите врача</option>
                 {doctors.map(doctor => (
@@ -353,12 +402,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 name="nurse"
                 value={formData.nurse}
                 onChange={(e) => setFormData({ ...formData, nurse: e.target.value })}
-                disabled={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Выберите медсестру</option>
                 {nurses.map(nurse => (
@@ -376,12 +420,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 name="teeth"
                 value={formData.teeth}
                 onChange={(e) => setFormData({ ...formData, teeth: e.target.value })}
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Например: 11, 12, 13 или все"
               />
             </div>
@@ -395,12 +434,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 value={formData.comments}
                 onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
                 rows={3}
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 placeholder="Дополнительная информация..."
               />
             </div>
@@ -414,12 +448,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                 name="birthDate"
                 value={formData.birthDate}
                 onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                readOnly={!isEditMode}
-                className={`w-full px-5 py-4 text-lg border rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  isEditMode
-                    ? 'border-gray-300 bg-white'
-                    : 'border-gray-200 bg-gray-50 text-gray-700'
-                }`}
+                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
@@ -440,49 +469,34 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
               paddingTop: '1rem'
             }}
           >
-          {isEditMode ? (
-            // Режим редактирования: Сохранить и Отмена
-            <>
-              <button
-                type="submit"
-                form="patient-form"
-                disabled={isSubmitting}
-                className="w-full px-6 py-4 bg-blue-600 text-white text-lg rounded-[14px] font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSubmitting ? 'Сохранение...' : 'Сохранить'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsEditMode(false)}
-                disabled={isSubmitting}
-                className="w-full px-6 py-4 bg-gray-600 text-white text-lg rounded-[14px] font-semibold hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Отмена
-              </button>
-            </>
-          ) : (
-            // Режим просмотра: Изменить и Удалить
-            <>
-              <button
-                type="button"
-                onClick={() => setIsEditMode(true)}
-                className="w-full px-6 py-4 bg-blue-600 text-white text-lg rounded-[14px] font-semibold hover:bg-blue-700 transition-colors"
-              >
-                Изменить
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                disabled={isDeleting}
-                className="w-full px-6 py-4 bg-red-600 text-white text-lg rounded-[14px] font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isDeleting ? 'Удаление...' : 'Удалить запись'}
-              </button>
-            </>
-          )}
+            <button
+              type="submit"
+              form="patient-form"
+              disabled={isSubmitting}
+              className="w-full px-6 py-4 bg-blue-600 text-white text-lg rounded-[14px] font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Сохранение...' : 'Сохранить'}
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="w-full px-6 py-4 bg-red-600 text-white text-lg rounded-[14px] font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isDeleting ? 'Удаление...' : 'Удалить запись'}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Модальное окно подтверждения изменений */}
+      <ConfirmChangesModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmChanges}
+        onCancel={handleCancelChanges}
+        changes={getChanges()}
+      />
     </>
   )
 }
