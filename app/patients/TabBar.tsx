@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
@@ -119,6 +120,30 @@ export function TabBar() {
   const pathname = usePathname()
   const router = useRouter()
   const { logout, user, authType } = useAuth()
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
+
+  // Проверяем админские права при монтировании компонента
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        const response = await fetch('/api/admin/check-auth', { cache: 'no-store' })
+        if (response.ok) {
+          const data = await response.json()
+          setIsAdmin(data.isAdmin === true)
+        } else {
+          setIsAdmin(false)
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error)
+        setIsAdmin(false)
+      } finally {
+        setIsCheckingAdmin(false)
+      }
+    }
+
+    checkAdminStatus()
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -133,8 +158,8 @@ export function TabBar() {
     console.log('📍 TabBar pathname:', pathname, 'normalized:', normalizedPathname)
   }
 
-  // Показываем кнопку админ панели только для пользователей, вошедших через пароль (email)
-  const showAdminButton = authType === 'email'
+  // Показываем кнопку админ панели только для админов
+  const showAdminButton = isAdmin && !isCheckingAdmin
 
   const tabs = [
     {
