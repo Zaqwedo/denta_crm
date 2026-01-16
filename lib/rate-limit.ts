@@ -77,12 +77,28 @@ export const rateLimiter = new RateLimiter()
 
 /**
  * Получает IP адрес из запроса
+ * Поддерживает как NextRequest (App Router), так и NextApiRequest (Pages Router)
  */
 export function getClientIp(req: any): string {
-  const forwarded = req.headers['x-forwarded-for']
+  // Для NextRequest (App Router)
+  if (req && typeof req.headers?.get === 'function') {
+    const forwarded = req.headers.get('x-forwarded-for')
+    const realIp = req.headers.get('x-real-ip')
+    
+    if (forwarded) {
+      return forwarded.split(',')[0].trim()
+    }
+    if (realIp) {
+      return realIp
+    }
+    return 'unknown'
+  }
+  
+  // Для NextApiRequest (Pages Router)
+  const forwarded = req.headers?.['x-forwarded-for']
   const ip = forwarded 
     ? (Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0].trim())
-    : req.headers['x-real-ip'] 
+    : req.headers?.['x-real-ip'] 
     ? req.headers['x-real-ip']
     : req.socket?.remoteAddress
     ? req.socket.remoteAddress

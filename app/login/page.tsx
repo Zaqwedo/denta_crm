@@ -6,8 +6,14 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [registerEmail, setRegisterEmail] = useState('')
+  const [registerPassword, setRegisterPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const { login, isAuthenticated, isLoading: authLoading } = useAuth()
   const router = useRouter()
 
@@ -60,7 +66,9 @@ export default function LoginPage() {
         } else if (errorParam === 'yandex_unsupported_response_type') {
           setError('Неподдерживаемый тип ответа Yandex OAuth. Обратитесь к администратору.')
         } else if (errorParam === 'yandex_invalid_scope') {
-          setError('Неверный scope для Yandex OAuth. Обратитесь к администратору.')
+          const detailsParam = searchParams.get('details')
+          const details = detailsParam ? decodeURIComponent(detailsParam) : ''
+          setError(details || 'Неверный scope для Yandex OAuth. Если scope правильно настроены в приложении, попробуйте не указывать их явно в запросе (убедитесь, что переменная YANDEX_OAUTH_SCOPE не установлена).')
         } else if (errorParam === 'yandex_email_not_allowed') {
           setError('Доступ ограничен. Пожалуйста, обратитесь к администратору для добавления вашего Yandex аккаунта в список разрешенных пользователей.')
         } else {
@@ -74,25 +82,64 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setSuccess(null)
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth/email-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email: email.trim() || undefined, password }),
       })
 
       const data = await response.json()
 
       if (response.ok && data.success) {
-        // Cookie устанавливается на сервере в /api/auth/login, не нужно устанавливать на клиенте
-        login({ id: 1, first_name: 'Admin', username: 'admin', last_name: '' }, 'email')
+        if (data.isAdmin) {
+          login({ id: 1, first_name: 'Admin', username: 'admin', last_name: '' }, 'email')
+        } else {
+          login(data.user, 'email')
+        }
         router.push('/patients')
       } else {
         setError(data.error || 'Ошибка входа')
       }
     } catch (error) {
       setError('Ошибка при входе')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: registerEmail,
+          password: registerPassword,
+          confirmPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setSuccess(data.message)
+        setIsRegistering(false)
+        setRegisterEmail('')
+        setRegisterPassword('')
+        setConfirmPassword('')
+      } else {
+        setError(data.error || 'Ошибка регистрации')
+      }
+    } catch (error) {
+      setError('Ошибка при регистрации')
     } finally {
       setIsLoading(false)
     }
@@ -112,13 +159,24 @@ export default function LoginPage() {
         </div>
 
         <div className="bg-white rounded-[20px] p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-center mb-6 text-gray-900">Вход в систему</h2>
+          <h2 className="text-lg font-semibold text-center mb-6 text-gray-900">
+            {isRegistering ? 'Регистрация' : 'Вход в систему'}
+          </h2>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm text-center">
               {error}
             </div>
           )}
+
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm text-center">
+              {success}
+            </div>
+          )}
+
+          {!isRegistering ? (
+            <>
 
           {/* Кнопка Google OAuth - основной способ входа */}
           <button
@@ -168,32 +226,129 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Форма входа по паролю */}
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Пароль
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                placeholder="Введите ваш пароль"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-            >
-              {isLoading ? 'Вход...' : 'Войти'}
-            </button>
-          </form>
+              {/* Форма входа */}
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    placeholder="Введите ваш email"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                    Пароль
+                  </label>
+                  <input
+                    id="password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    placeholder="Введите ваш пароль"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                >
+                  {isLoading ? 'Вход...' : 'Войти'}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => setIsRegistering(true)}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Зарегистрироваться
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Форма регистрации */}
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div>
+                  <label htmlFor="registerEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    id="registerEmail"
+                    type="email"
+                    autoComplete="email"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="registerPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Пароль (минимум 6 символов)
+                  </label>
+                  <input
+                    id="registerPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Повторите пароль
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    placeholder="Повторите пароль"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                >
+                  {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegistering(false)
+                    setError(null)
+                    setSuccess(null)
+                  }}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                >
+                  Вернуться к входу
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
-  );
+  )
 }
