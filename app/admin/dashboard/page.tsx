@@ -90,6 +90,15 @@ export default function AdminDashboard() {
 
       if (whitelistRes.ok) {
         const whitelistData = await whitelistRes.json()
+        console.log('loadData: загружены whitelist emails', {
+          emails: whitelistData.emails,
+          count: whitelistData.emails?.length || 0,
+          emailsWithDoctors: whitelistData.emails?.map((e: any) => ({
+            email: e.email,
+            doctors: e.doctors,
+            doctorsCount: e.doctors?.length || 0
+          }))
+        })
         setWhitelistEmails(whitelistData.emails || [])
       }
 
@@ -281,6 +290,13 @@ export default function AdminDashboard() {
     setSuccess(null)
 
     try {
+      console.log('handleUpdateEmailDoctors: отправка данных', {
+        email,
+        doctors,
+        doctorsCount: doctors.length,
+        doctorsArray: doctors
+      })
+
       const response = await fetch('/api/admin/whitelist', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -288,6 +304,12 @@ export default function AdminDashboard() {
       })
 
       const data = await response.json()
+
+      console.log('handleUpdateEmailDoctors: ответ сервера', {
+        ok: response.ok,
+        status: response.status,
+        data
+      })
 
       if (!response.ok) {
         setError(data.error || 'Ошибка обновления врачей')
@@ -586,7 +608,17 @@ export default function AdminDashboard() {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setEditingEmail(editingEmail?.id === item.id ? null : item)}
+                          onClick={() => {
+                            if (editingEmail?.id === item.id) {
+                              setEditingEmail(null)
+                            } else {
+                              // Создаем копию объекта с текущими врачами для редактирования
+                              setEditingEmail({
+                                ...item,
+                                doctors: item.doctors ? [...item.doctors] : []
+                              })
+                            }
+                          }}
                           className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-lg transition-all"
                         >
                           {editingEmail?.id === item.id ? 'Отмена' : 'Изменить врачей'}
