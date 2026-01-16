@@ -181,6 +181,9 @@ export async function POST(req: NextRequest) {
       path: '/',
     })
     
+    // Удаляем admin_auth cookie при обычном входе (если была установлена ранее)
+    cookieStore.delete('admin_auth')
+    
     // Сохраняем email в cookie для фильтрации пациентов
     cookieStore.set('denta_user_email', userEmail, {
       httpOnly: true,

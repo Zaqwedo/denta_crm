@@ -187,17 +187,33 @@ export async function getDoctorsForEmail(whitelistEmailId: number): Promise<stri
   try {
     await safeEnsureAnonymousSession()
     
+    logger.info('getDoctorsForEmail: начало', {
+      whitelistEmailId
+    })
+    
     const { data, error } = await supabase
       .from('whitelist_email_doctors')
-      .select('doctor_name')
+      .select('doctor_name, id')
       .eq('whitelist_email_id', whitelistEmailId)
     
     if (error) {
-      logger.error('Ошибка получения врачей для email:', error)
+      logger.error('getDoctorsForEmail: ошибка при получении врачей', {
+        whitelistEmailId,
+        error
+      })
       return []
     }
     
-    return data?.map(d => d.doctor_name) || []
+    const doctors = data?.map(d => d.doctor_name) || []
+    
+    logger.info('getDoctorsForEmail: врачи получены', {
+      whitelistEmailId,
+      doctors,
+      doctorsCount: doctors.length,
+      rawData: data
+    })
+    
+    return doctors
   } catch (error) {
     logger.error('Ошибка получения врачей для email:', error)
     return []
@@ -209,18 +225,48 @@ export async function getDoctorsForEmailByEmail(email: string): Promise<string[]
   try {
     await safeEnsureAnonymousSession()
     
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    logger.info('getDoctorsForEmailByEmail: начало', { email: normalizedEmail })
+    
     // Сначала находим ID email в whitelist_emails
+    // Используем maybeSingle() чтобы не выбрасывать ошибку если не найдено
     const { data: emailData, error: emailError } = await supabase
       .from('whitelist_emails')
-      .select('id')
-      .eq('email', email.toLowerCase().trim())
-      .single()
+      .select('id, email, provider')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
     
-    if (emailError || !emailData) {
+    if (emailError) {
+      logger.error('getDoctorsForEmailByEmail: ошибка при поиске email', {
+        email: normalizedEmail,
+        error: emailError
+      })
       return []
     }
     
-    return await getDoctorsForEmail(emailData.id)
+    if (!emailData) {
+      logger.info('getDoctorsForEmailByEmail: email не найден в whitelist', {
+        email: normalizedEmail
+      })
+      return []
+    }
+    
+    logger.info('getDoctorsForEmailByEmail: email найден', {
+      email: normalizedEmail,
+      whitelistId: emailData.id,
+      provider: emailData.provider
+    })
+    
+    const doctors = await getDoctorsForEmail(emailData.id)
+    
+    logger.info('getDoctorsForEmailByEmail: врачи получены', {
+      email: normalizedEmail,
+      doctors,
+      doctorsCount: doctors.length
+    })
+    
+    return doctors
   } catch (error) {
     logger.error('Ошибка получения врачей для email:', error)
     return []
@@ -252,18 +298,38 @@ export async function addWhitelistEmail(
     
     // Если указаны врачи, добавляем связи
     if (doctorNames && doctorNames.length > 0 && emailData) {
-      const { error: doctorsError } = await supabase
+      const doctorLinks = doctorNames
+        .filter(d => d && typeof d === 'string' && d.trim())
+        .map(doctorName => ({
+          whitelist_email_id: emailData.id,
+          doctor_name: doctorName.trim()
+        }))
+      
+      logger.info('addWhitelistEmail: добавляем связи с врачами', {
+        email: email.trim().toLowerCase(),
+        whitelistId: emailData.id,
+        doctorLinks,
+        linksCount: doctorLinks.length
+      })
+      
+      const { data: insertedData, error: doctorsError } = await supabase
         .from('whitelist_email_doctors')
-        .insert(
-          doctorNames.map(doctorName => ({
-            whitelist_email_id: emailData.id,
-            doctor_name: doctorName.trim()
-          }))
-        )
+        .insert(doctorLinks)
+        .select()
       
       if (doctorsError) {
-        logger.error('Ошибка добавления врачей для email:', doctorsError)
+        logger.error('addWhitelistEmail: ошибка добавления врачей', {
+          email: email.trim().toLowerCase(),
+          whitelistId: emailData.id,
+          error: doctorsError,
+          doctorLinks
+        })
         // Не пробрасываем ошибку, так как email уже добавлен
+      } else {
+        logger.info('addWhitelistEmail: связи с врачами добавлены', {
+          email: email.trim().toLowerCase(),
+          insertedCount: insertedData?.length || 0
+        })
       }
     }
   } catch (error) {
@@ -279,42 +345,100 @@ export async function updateWhitelistEmailDoctors(
   try {
     await safeEnsureAnonymousSession()
     
-    // Находим ID email
+    const normalizedEmail = email.toLowerCase().trim()
+    
+    logger.info('updateWhitelistEmailDoctors: начало', {
+      email: normalizedEmail,
+      doctorNames,
+      doctorsCount: doctorNames.length
+    })
+    
+    // Находим ID email (используем maybeSingle для безопасности)
     const { data: emailData, error: emailError } = await supabase
       .from('whitelist_emails')
-      .select('id')
-      .eq('email', email.toLowerCase().trim())
-      .single()
+      .select('id, email')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
     
-    if (emailError || !emailData) {
+    if (emailError) {
+      logger.error('updateWhitelistEmailDoctors: ошибка при поиске email', {
+        email: normalizedEmail,
+        error: emailError
+      })
+      throw emailError
+    }
+    
+    if (!emailData) {
+      logger.error('updateWhitelistEmailDoctors: email не найден', {
+        email: normalizedEmail
+      })
       throw new Error('Email not found')
     }
     
+    logger.info('updateWhitelistEmailDoctors: email найден', {
+      email: normalizedEmail,
+      whitelistId: emailData.id
+    })
+    
     // Удаляем все существующие связи
-    const { error: deleteError } = await supabase
+    const { error: deleteError, count: deleteCount } = await supabase
       .from('whitelist_email_doctors')
       .delete()
       .eq('whitelist_email_id', emailData.id)
     
     if (deleteError) {
-      logger.error('Ошибка удаления старых связей:', deleteError)
+      logger.error('updateWhitelistEmailDoctors: ошибка удаления старых связей', {
+        email: normalizedEmail,
+        whitelistId: emailData.id,
+        error: deleteError
+      })
+      throw deleteError
     }
+    
+    logger.info('updateWhitelistEmailDoctors: старые связи удалены', {
+      email: normalizedEmail,
+      deletedCount: deleteCount
+    })
     
     // Добавляем новые связи
     if (doctorNames.length > 0) {
-      const { error: insertError } = await supabase
+      const doctorLinks = doctorNames
+        .filter(d => d && typeof d === 'string' && d.trim())
+        .map(doctorName => ({
+          whitelist_email_id: emailData.id,
+          doctor_name: doctorName.trim()
+        }))
+      
+      logger.info('updateWhitelistEmailDoctors: добавляем новые связи', {
+        email: normalizedEmail,
+        whitelistId: emailData.id,
+        doctorLinks,
+        linksCount: doctorLinks.length
+      })
+      
+      const { data: insertedData, error: insertError } = await supabase
         .from('whitelist_email_doctors')
-        .insert(
-          doctorNames.map(doctorName => ({
-            whitelist_email_id: emailData.id,
-            doctor_name: doctorName.trim()
-          }))
-        )
+        .insert(doctorLinks)
+        .select()
       
       if (insertError) {
-        logger.error('Ошибка добавления новых связей:', insertError)
+        logger.error('updateWhitelistEmailDoctors: ошибка добавления новых связей', {
+          email: normalizedEmail,
+          whitelistId: emailData.id,
+          error: insertError,
+          doctorLinks
+        })
         throw insertError
       }
+      
+      logger.info('updateWhitelistEmailDoctors: новые связи добавлены', {
+        email: normalizedEmail,
+        insertedCount: insertedData?.length || 0
+      })
+    } else {
+      logger.info('updateWhitelistEmailDoctors: нет врачей для добавления', {
+        email: normalizedEmail
+      })
     }
   } catch (error) {
     logger.error('Ошибка обновления врачей для email:', error)
