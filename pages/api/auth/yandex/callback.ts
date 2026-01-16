@@ -23,26 +23,32 @@ export default async function handler(
     console.error('❌ Yandex OAuth error_description:', error_description)
     console.error('❌ Full query params:', JSON.stringify(req.query))
     
+    // Преобразуем query параметры в строки
+    const errorStr = Array.isArray(error) ? error[0] : error
+    const errorDescriptionStr = error_description 
+      ? (Array.isArray(error_description) ? error_description[0] : error_description)
+      : null
+    
     // Улучшенная обработка ошибок
     let errorCode = 'yandex_oauth_error'
-    let errorMessage = error_description || error
+    let errorMessage = errorDescriptionStr || errorStr || 'Неизвестная ошибка'
     
     // Специфичные ошибки от Yandex
-    if (error === 'access_denied') {
+    if (errorStr === 'access_denied') {
       errorCode = 'yandex_access_denied'
       errorMessage = 'Доступ запрещен пользователем'
-    } else if (error === 'invalid_request') {
+    } else if (errorStr === 'invalid_request') {
       errorCode = 'yandex_invalid_request'
       errorMessage = 'Неверный запрос. Проверьте redirect_uri и client_id'
-    } else if (error === 'unauthorized_client') {
+    } else if (errorStr === 'unauthorized_client') {
       errorCode = 'yandex_unauthorized_client'
       errorMessage = 'Неавторизованный клиент. Проверьте YANDEX_CLIENT_ID'
-    } else if (error === 'unsupported_response_type') {
+    } else if (errorStr === 'unsupported_response_type') {
       errorCode = 'yandex_unsupported_response_type'
       errorMessage = 'Неподдерживаемый тип ответа'
-    } else if (error === 'invalid_scope') {
+    } else if (errorStr === 'invalid_scope') {
       errorCode = 'yandex_invalid_scope'
-      errorMessage = `Неверный scope: ${error_description || 'Проверьте настройки приложения в Yandex OAuth. Scope должны быть включены в настройках приложения, и их не нужно указывать явно в запросе, если они уже настроены.'}`
+      errorMessage = `Неверный scope: ${errorDescriptionStr || 'Проверьте настройки приложения в Yandex OAuth. Scope должны быть включены в настройках приложения, и их не нужно указывать явно в запросе, если они уже настроены.'}`
     }
     
     console.error('❌ Redirecting to login with error:', errorCode)
