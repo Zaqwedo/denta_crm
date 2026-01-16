@@ -19,26 +19,34 @@ export default async function handler(
   }
 
   if (error) {
-    console.error('Yandex OAuth error:', error)
-    console.error('Yandex OAuth error_description:', error_description)
+    console.error('❌ Yandex OAuth error:', error)
+    console.error('❌ Yandex OAuth error_description:', error_description)
+    console.error('❌ Full query params:', JSON.stringify(req.query))
     
     // Улучшенная обработка ошибок
     let errorCode = 'yandex_oauth_error'
+    let errorMessage = error_description || error
     
     // Специфичные ошибки от Yandex
     if (error === 'access_denied') {
       errorCode = 'yandex_access_denied'
+      errorMessage = 'Доступ запрещен пользователем'
     } else if (error === 'invalid_request') {
       errorCode = 'yandex_invalid_request'
+      errorMessage = 'Неверный запрос. Проверьте redirect_uri и client_id'
     } else if (error === 'unauthorized_client') {
       errorCode = 'yandex_unauthorized_client'
+      errorMessage = 'Неавторизованный клиент. Проверьте YANDEX_CLIENT_ID'
     } else if (error === 'unsupported_response_type') {
       errorCode = 'yandex_unsupported_response_type'
+      errorMessage = 'Неподдерживаемый тип ответа'
     } else if (error === 'invalid_scope') {
       errorCode = 'yandex_invalid_scope'
+      errorMessage = `Неверный scope: ${error_description || 'Проверьте настройки приложения в Yandex OAuth. Scope должны быть включены в настройках приложения, и их не нужно указывать явно в запросе, если они уже настроены.'}`
     }
     
-    return res.redirect(`/login?error=${errorCode}`)
+    console.error('❌ Redirecting to login with error:', errorCode)
+    return res.redirect(`/login?error=${errorCode}&details=${encodeURIComponent(errorMessage)}`)
   }
 
   if (!code) {
@@ -154,13 +162,20 @@ export default async function handler(
     // Устанавливаем HttpOnly cookie (как в Google)
     const COOKIE_MAX_AGE_DAYS = 30
     const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60
+    const userEmail = (userData.default_email || userData.login || '').toLowerCase().trim()
 
     let cookieValue = `denta_auth=valid; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       cookieValue += '; Secure'
     }
+    
+    // Сохраняем email в cookie для фильтрации пациентов
+    let emailCookieValue = `denta_user_email=${userEmail}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
+    if (process.env.NODE_ENV === 'production') {
+      emailCookieValue += '; Secure'
+    }
 
-    res.setHeader('Set-Cookie', cookieValue)
+    res.setHeader('Set-Cookie', [cookieValue, emailCookieValue])
 
     // Перенаправляем с данными пользователя
     const userInfo = {

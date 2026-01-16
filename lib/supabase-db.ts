@@ -2,6 +2,8 @@
 
 import { supabase, ensureAnonymousSession } from '../lib/supabase'
 import { logger } from './logger'
+import { getDoctorsForEmailByEmail } from './admin-db'
+import { cookies } from 'next/headers'
 
 /**
  * Безопасно устанавливает анонимную сессию, игнорируя ошибки об отключенной анонимной аутентификации
@@ -37,16 +39,40 @@ export interface PatientData {
 
 /**
  * Получает данные из таблицы 'patients' Supabase
+ * @param userEmail Email пользователя для фильтрации по врачам (опционально, если не указан, читается из cookie)
  * @returns Массив объектов с данными пациентов
  */
-export async function getPatients(): Promise<PatientData[]> {
+export async function getPatients(userEmail?: string): Promise<PatientData[]> {
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
     
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*');
+    // Если email не передан, пытаемся получить из cookie
+    let email = userEmail
+    if (!email) {
+      try {
+        const cookieStore = await cookies()
+        const emailCookie = cookieStore.get('denta_user_email')
+        email = emailCookie?.value
+      } catch (error) {
+        // Игнорируем ошибки чтения cookie
+      }
+    }
+    
+    let query = supabase.from('patients').select('*')
+    
+    // Если есть email пользователя, проверяем ограничения по врачам
+    if (email) {
+      const allowedDoctors = await getDoctorsForEmailByEmail(email)
+      
+      // Если есть ограничения по врачам (массив не пустой), применяем фильтр
+      // Если массив пустой, значит ограничений нет - показываем всех
+      if (allowedDoctors.length > 0) {
+        query = query.in('Доктор', allowedDoctors)
+      }
+    }
+    
+    const { data, error } = await query
 
     if (error) {
       logger.error('Ошибка при получении данных пациентов из Supabase:', error);

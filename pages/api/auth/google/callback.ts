@@ -142,13 +142,20 @@ export default async function handler(
     // Устанавливаем HttpOnly cookie
     const COOKIE_MAX_AGE_DAYS = 30
     const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60
+    const userEmail = (userData.email || '').toLowerCase().trim()
 
     let cookieValue = `denta_auth=valid; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       cookieValue += '; Secure'
     }
+    
+    // Сохраняем email в cookie для фильтрации пациентов
+    let emailCookieValue = `denta_user_email=${userEmail}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
+    if (process.env.NODE_ENV === 'production') {
+      emailCookieValue += '; Secure'
+    }
 
-    res.setHeader('Set-Cookie', cookieValue)
+    res.setHeader('Set-Cookie', [cookieValue, emailCookieValue])
 
     // Перенаправляем на страницу пациентов с данными пользователя
     const userInfo = {

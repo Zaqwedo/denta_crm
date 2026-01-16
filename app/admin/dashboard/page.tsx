@@ -8,6 +8,7 @@ interface WhitelistEmail {
   email: string
   provider: 'google' | 'yandex' | 'email'
   created_at: string
+  doctors?: string[]
 }
 
 export default function AdminDashboard() {
@@ -25,6 +26,8 @@ export default function AdminDashboard() {
   const [newNurse, setNewNurse] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [newEmailProvider, setNewEmailProvider] = useState<'google' | 'yandex' | 'email'>('google')
+  const [selectedDoctors, setSelectedDoctors] = useState<string[]>([])
+  const [editingEmail, setEditingEmail] = useState<WhitelistEmail | null>(null)
 
   // Сообщения об ошибках
   const [error, setError] = useState<string | null>(null)
@@ -231,7 +234,11 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/whitelist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: newEmail, provider: newEmailProvider }),
+        body: JSON.stringify({ 
+          email: newEmail, 
+          provider: newEmailProvider,
+          doctors: selectedDoctors
+        }),
       })
 
       const data = await response.json()
@@ -243,11 +250,47 @@ export default function AdminDashboard() {
 
       setSuccess('Email успешно добавлен в белый список')
       setNewEmail('')
+      setSelectedDoctors([])
       await loadData()
     } catch (err) {
       setError('Ошибка при добавлении email')
       console.error('Add email error:', err)
     }
+  }
+
+  const handleUpdateEmailDoctors = async (email: string, doctors: string[]) => {
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await fetch('/api/admin/whitelist', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, doctors }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Ошибка обновления врачей')
+        return
+      }
+
+      setSuccess('Врачи успешно обновлены')
+      setEditingEmail(null)
+      await loadData()
+    } catch (err) {
+      setError('Ошибка при обновлении врачей')
+      console.error('Update email doctors error:', err)
+    }
+  }
+
+  const toggleDoctor = (doctorName: string) => {
+    setSelectedDoctors(prev => 
+      prev.includes(doctorName)
+        ? prev.filter(d => d !== doctorName)
+        : [...prev, doctorName]
+    )
   }
 
   const handleDeleteEmail = async (email: string) => {
@@ -422,7 +465,7 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:col-span-2">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Белые списки email</h2>
             
-            <form onSubmit={handleAddEmail} className="mb-4">
+            <form onSubmit={handleAddEmail} className="mb-4 space-y-3">
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   type="email"
@@ -448,6 +491,36 @@ export default function AdminDashboard() {
                   Добавить
                 </button>
               </div>
+              
+              {/* Выбор врачей */}
+              {doctors.length > 0 && (
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Врачи, которых может видеть этот email (необязательно):
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {doctors.map((doctor) => (
+                      <label
+                        key={doctor}
+                        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedDoctors.includes(doctor)}
+                          onChange={() => toggleDoctor(doctor)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">{doctor}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedDoctors.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Если не выбрано ни одного врача, email будет видеть всех пациентов
+                    </p>
+                  )}
+                </div>
+              )}
             </form>
 
             <div className="space-y-2">
@@ -457,20 +530,92 @@ export default function AdminDashboard() {
                 whitelistEmails.map((item) => (
                   <div
                     key={item.id}
-                    className="flex justify-between items-center p-3 bg-gray-50 rounded-xl"
+                    className="p-4 bg-gray-50 rounded-xl space-y-2"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-gray-900">{item.email}</span>
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-lg">
-                        {item.provider}
-                      </span>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-900 font-medium">{item.email}</span>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-lg">
+                          {item.provider}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setEditingEmail(editingEmail?.id === item.id ? null : item)}
+                          className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-lg transition-all"
+                        >
+                          {editingEmail?.id === item.id ? 'Отмена' : 'Изменить врачей'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEmail(item.email)}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-all"
+                        >
+                          Удалить
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteEmail(item.email)}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-all"
-                    >
-                      Удалить
-                    </button>
+                    
+                    {/* Отображение врачей */}
+                    {item.doctors && item.doctors.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        <span className="text-xs text-gray-600">Врачи:</span>
+                        {item.doctors.map((doctor) => (
+                          <span
+                            key={doctor}
+                            className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-lg"
+                          >
+                            {doctor}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">Видит всех пациентов</p>
+                    )}
+                    
+                    {/* Форма редактирования врачей */}
+                    {editingEmail?.id === item.id && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Выберите врачей:
+                        </label>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {doctors.map((doctor) => (
+                            <label
+                              key={doctor}
+                              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={editingEmail.doctors?.includes(doctor) || false}
+                                onChange={() => {
+                                  const currentDoctors = editingEmail.doctors || []
+                                  const newDoctors = currentDoctors.includes(doctor)
+                                    ? currentDoctors.filter(d => d !== doctor)
+                                    : [...currentDoctors, doctor]
+                                  setEditingEmail({ ...editingEmail, doctors: newDoctors })
+                                }}
+                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700">{doctor}</span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleUpdateEmailDoctors(item.email, editingEmail.doctors || [])}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-all"
+                          >
+                            Сохранить
+                          </button>
+                          <button
+                            onClick={() => setEditingEmail(null)}
+                            className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 text-sm rounded-lg transition-all"
+                          >
+                            Отмена
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

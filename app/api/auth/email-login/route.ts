@@ -90,8 +90,18 @@ export async function POST(req: NextRequest) {
 
     const cookieStore = await cookies()
     const maxAge = 30 * 24 * 60 * 60
+    const userEmail = email.toLowerCase().trim()
     
     cookieStore.set('denta_auth', 'valid', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge,
+      path: '/',
+    })
+    
+    // Сохраняем email в cookie для фильтрации пациентов
+    cookieStore.set('denta_user_email', userEmail, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

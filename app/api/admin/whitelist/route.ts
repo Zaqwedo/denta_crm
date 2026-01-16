@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkAdminAuth, unauthorizedResponse } from '@/lib/auth-check'
-import { getWhitelistEmails, addWhitelistEmail, deleteWhitelistEmail } from '@/lib/admin-db'
+import { getWhitelistEmails, addWhitelistEmail, deleteWhitelistEmail, updateWhitelistEmailDoctors } from '@/lib/admin-db'
 import { revalidatePath } from 'next/cache'
 
 export async function GET(req: NextRequest) {
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
       return unauthorizedResponse()
     }
     
-    const { email, provider } = await req.json()
+    const { email, provider, doctors } = await req.json()
     
     if (!email || typeof email !== 'string' || email.trim() === '') {
       return NextResponse.json(
@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
       )
     }
     
-    await addWhitelistEmail(email.trim(), provider)
+    // Валидация doctors (массив строк)
+    const doctorNames = Array.isArray(doctors) ? doctors.filter(d => typeof d === 'string' && d.trim()) : []
+    
+    await addWhitelistEmail(email.trim(), provider, doctorNames)
     
     revalidatePath('/admin/dashboard')
     
@@ -68,6 +71,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: 'Email already exists in whitelist' },
         { status: 409 }
+      )
+    }
+    
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const isAdmin = await checkAdminAuth()
+    if (!isAdmin) {
+      return unauthorizedResponse()
+    }
+    
+    const { email, doctors } = await req.json()
+    
+    if (!email || typeof email !== 'string' || email.trim() === '') {
+      return NextResponse.json(
+        { error: 'Email is required' },
+        { status: 400 }
+      )
+    }
+    
+    // Валидация doctors (массив строк)
+    const doctorNames = Array.isArray(doctors) ? doctors.filter(d => typeof d === 'string' && d.trim()) : []
+    
+    await updateWhitelistEmailDoctors(email.trim(), doctorNames)
+    
+    revalidatePath('/admin/dashboard')
+    
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Update whitelist email doctors error:', error)
+    
+    if (error?.message === 'Email not found') {
+      return NextResponse.json(
+        { error: 'Email not found' },
+        { status: 404 }
       )
     }
     
