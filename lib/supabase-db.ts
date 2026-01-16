@@ -307,6 +307,7 @@ export async function getPatientChanges(patientId: string): Promise<Array<{
 
 /**
  * Получает измененные записи пациентов (где updated_at существует и отличается от created_at)
+ * С применением фильтрации по врачам для не-админов
  * @returns Массив объектов с данными измененных пациентов
  */
 export async function getChangedPatients(): Promise<PatientData[]> {
@@ -314,12 +315,70 @@ export async function getChangedPatients(): Promise<PatientData[]> {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
     
-    // Получаем все записи с полями created_at и updated_at
-    // Используем безопасный запрос, который не упадет, если updated_at еще не настроен
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .order('id', { ascending: false });
+    // Проверяем, является ли пользователь админом
+    const isAdmin = await checkAdminAuth()
+    
+    logger.info('getChangedPatients: начало', {
+      isAdmin,
+      timestamp: new Date().toISOString(),
+    })
+    
+    let query = supabase.from('patients').select('*')
+    let email: string | undefined
+    
+    // Если пользователь не админ, применяем фильтрацию по врачам
+    if (!isAdmin) {
+      // Получаем email из cookie
+      try {
+        const cookieStore = await cookies()
+        const emailCookie = cookieStore.get('denta_user_email')
+        email = emailCookie?.value
+        logger.info('getChangedPatients: email получен из cookie', {
+          email: email,
+          hasCookie: !!emailCookie,
+        })
+      } catch (error) {
+        logger.error('getChangedPatients: ошибка чтения cookie', { error })
+      }
+      
+      // Если есть email пользователя, проверяем ограничения по врачам
+      if (email) {
+        const normalizedEmail = email.toLowerCase().trim()
+        const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
+        
+        logger.info('getChangedPatients: получены разрешенные врачи', {
+          email: normalizedEmail,
+          allowedDoctors,
+          doctorsCount: allowedDoctors.length
+        })
+        
+        // Если врачи указаны - показываем только их пациентов
+        if (allowedDoctors.length > 0) {
+          const normalizedAllowedDoctors = allowedDoctors.map(d => d.trim()).filter(d => d)
+          query = query.in('Доктор', normalizedAllowedDoctors)
+          
+          logger.info('getChangedPatients: фильтр по врачам применен', {
+            email: normalizedEmail,
+            filterDoctors: normalizedAllowedDoctors,
+          })
+        } else {
+          // Если врачи не указаны - НЕ показываем пациентов
+          logger.warn('getChangedPatients: врачи не указаны для email, показываем 0 пациентов', {
+            email: normalizedEmail,
+          })
+          query = query.eq('Доктор', '__NO_DOCTORS_SELECTED__')
+        }
+      } else {
+        // Если email не найден - НЕ показываем пациентов
+        logger.warn('getChangedPatients: email не найден, показываем 0 пациентов')
+        query = query.eq('Доктор', '__NO_EMAIL_FOUND__')
+      }
+    } else {
+      logger.info('getChangedPatients: пользователь является админом, показываем всех пациентов без фильтрации')
+    }
+    
+    // Получаем данные с применением фильтров
+    const { data, error } = await query.order('id', { ascending: false })
 
     if (error) {
       logger.error('Ошибка при получении измененных записей из Supabase:', error);
@@ -364,6 +423,13 @@ export async function getChangedPatients(): Promise<PatientData[]> {
       const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
       return bTime - aTime;
     });
+
+    logger.info('getChangedPatients: результат', {
+      isAdmin,
+      email: email ? email.toLowerCase().trim() : 'не указан',
+      totalPatients: data.length,
+      changedPatientsCount: changedPatients.length,
+    })
 
     return changedPatients as PatientData[];
 
