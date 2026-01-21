@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { handleAddPatient } from '../actions'
 import { useAuth } from '../../contexts/AuthContext'
 import { TabBar } from '../TabBar'
@@ -26,9 +26,12 @@ function formatPhone(value: string): string {
   return `+7 (${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6, 8)}-${limited.slice(8, 10)}`
 }
 
-export function NewPatientViewClient() {
+interface NewPatientViewClientProps {
+  initialDate?: string
+}
+
+export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps) {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { user } = useAuth()
   const { doctors, nurses } = useConstants()
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -37,13 +40,13 @@ export function NewPatientViewClient() {
   const [error, setError] = useState<string | null>(null)
   const [phoneValue, setPhoneValue] = useState('+7 (')
 
-  // Получаем дату из query параметра или используем сегодняшнюю
-  const initialDate = searchParams?.get('date') || new Date().toISOString().split('T')[0]
+  // Используем дату из пропса или сегодняшнюю
+  const initialDateValue = initialDate || new Date().toISOString().split('T')[0]
 
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    date: initialDate,
+    date: initialDateValue,
     time: '',
     doctor: '',
     status: 'Ожидает',
