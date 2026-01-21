@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { PatientForm } from './PatientForm'
+import Link from 'next/link'
 import { formatTime } from '@/lib/utils'
 
 // Встроенная SVG иконка X
@@ -41,18 +40,7 @@ interface DailyPreviewModalProps {
 }
 
 export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onPatientSelect }: DailyPreviewModalProps) {
-  const [isAddFormOpen, setIsAddFormOpen] = useState(false)
-
   if (!isOpen || !selectedDate) return null
-
-  const handleOpenAddForm = () => {
-    setIsAddFormOpen(true)
-  }
-
-  const handleCloseAddForm = () => {
-    setIsAddFormOpen(false)
-    onClose() // Закрываем DailyPreviewModal после закрытия PatientForm
-  }
 
   // Функция для форматирования даты в YYYY-MM-DD в локальном времени
   const formatDateLocal = (date: Date): string => {
@@ -189,22 +177,16 @@ export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onP
 
           {/* Кнопка добавления новой записи */}
           <div className="p-6 border-t border-gray-200">
-            <button
-              onClick={handleOpenAddForm}
-              className="w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-[12px] hover:bg-blue-700 transition-colors"
+            <Link
+              href={`/patients/new?date=${selectedDateStr}`}
+              className="block w-full flex items-center justify-center px-4 py-3 bg-blue-600 text-white text-base font-semibold rounded-[12px] hover:bg-blue-700 transition-colors"
+              onClick={onClose} // Закрываем модальное окно при переходе
             >
               + Добавить запись
-            </button>
+            </Link>
           </div>
         </div>
       </div>
-
-      {/* Модальное окно для формы добавления пациента */}
-      <PatientForm
-        isOpen={isAddFormOpen}
-        onClose={handleCloseAddForm}
-        initialDate={selectedDateStr} // Передаем выбранную дату
-      />
     </>
   )
 }

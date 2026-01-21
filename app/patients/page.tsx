@@ -1,11 +1,11 @@
 // app/patients/page.tsx
 import { getPatients } from '@/lib/supabase-db'
-import { PatientForm } from './PatientForm'
 import { PatientsList } from './PatientsList'
 import { TabBar } from './TabBar'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import { GoogleAuthHandler } from './GoogleAuthHandler'
 import { logger } from '@/lib/logger'
+import Link from 'next/link'
 
 export const revalidate = 60
 
@@ -53,9 +53,14 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
           </p>
         </div>
 
-        {/* Форма добавления пациента */}
+        {/* Кнопка добавления пациента */}
         <div className="mb-8">
-          <PatientForm isModal={false} />
+          <Link
+            href="/patients/new"
+            className="block w-full px-6 py-4 bg-blue-600 text-white text-lg rounded-[14px] font-semibold hover:bg-blue-700 transition-colors text-center shadow-sm"
+          >
+            + Записать пациента
+          </Link>
         </div>
 
         {error ? (
@@ -70,7 +75,12 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
             <div className="text-gray-400 text-6xl mb-4">📋</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Нет записей</h3>
             <p className="text-gray-500 text-base mb-6">У вас пока нет записанных пациентов</p>
-            <PatientForm isModal={false} />
+            <Link
+              href="/patients/new"
+              className="inline-block px-6 py-4 bg-blue-600 text-white text-lg rounded-[14px] font-semibold hover:bg-blue-700 transition-colors"
+            >
+              + Записать пациента
+            </Link>
           </div>
         ) : (
           <PatientsList 
