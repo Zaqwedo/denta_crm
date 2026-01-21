@@ -4,6 +4,7 @@ import { rateLimiter, getClientIp } from '@/lib/rate-limit'
 import crypto from 'crypto'
 import { cookies } from 'next/headers'
 import { getWhitelistEmails } from '@/lib/admin-db'
+import { revalidatePath } from 'next/cache'
 
 function verifyPassword(password: string, hashedPassword: string): boolean {
   const [salt, hash] = hashedPassword.split(':')
@@ -57,6 +58,11 @@ export async function POST(req: NextRequest) {
           maxAge,
           path: '/',
         })
+
+        // Инвалидируем кеш при входе админа
+        revalidatePath('/patients')
+        revalidatePath('/calendar')
+        revalidatePath('/patients/changes')
 
         return NextResponse.json({
           success: true,
@@ -192,6 +198,12 @@ export async function POST(req: NextRequest) {
       maxAge,
       path: '/',
     })
+
+    // КРИТИЧНО: Инвалидируем кеш страницы пациентов при перелогинивании
+    // Это гарантирует, что данные будут перезагружены с правильными правами доступа
+    revalidatePath('/patients')
+    revalidatePath('/calendar')
+    revalidatePath('/patients/changes')
 
     return NextResponse.json({
       success: true,

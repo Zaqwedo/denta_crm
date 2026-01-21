@@ -111,6 +111,9 @@ export default function LoginPage() {
         } else {
           login(data.user, 'email')
         }
+        // КРИТИЧНО: Принудительно обновляем страницу для загрузки данных с правильными правами доступа
+        // Это гарантирует, что закешированные данные от предыдущего пользователя не будут использованы
+        router.refresh()
         router.push('/patients')
       } else {
         setError(data.error || 'Ошибка входа')

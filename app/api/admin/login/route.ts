@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'app_password'
 
@@ -33,6 +34,21 @@ export async function POST(req: NextRequest) {
       path: '/',
     })
     
+    // Также устанавливаем denta_auth для доступа к основным страницам
+    cookieStore.set('denta_auth', 'valid', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge,
+      path: '/',
+    })
+    
+    // КРИТИЧНО: Инвалидируем кеш страницы пациентов при входе админа
+    // Это гарантирует, что данные будут перезагружены с правами админа
+    revalidatePath('/patients')
+    revalidatePath('/calendar')
+    revalidatePath('/patients/changes')
+    
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Admin login error:', error)
@@ -47,6 +63,12 @@ export async function DELETE() {
   try {
     const cookieStore = await cookies()
     cookieStore.delete('admin_auth')
+    
+    // КРИТИЧНО: Инвалидируем кеш при выходе из админки
+    // Это гарантирует, что данные будут перезагружены с правильными правами доступа
+    revalidatePath('/patients')
+    revalidatePath('/calendar')
+    revalidatePath('/patients/changes')
     
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -126,6 +126,8 @@ export default function AdminDashboard() {
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/login', { method: 'DELETE' })
+      // КРИТИЧНО: Принудительно обновляем страницу для загрузки данных с правильными правами доступа
+      router.refresh()
       router.push('/patients')
     } catch (err) {
       console.error('Logout error:', err)
