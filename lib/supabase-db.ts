@@ -37,6 +37,7 @@ export interface PatientData {
   'Дата рождения пациента'?: string; // Дата рождения пациента
   created_by_email?: string; // Почта того, кто создал запись
   emoji?: string; // Смайлик пациента
+  notes?: string; // Общая заметка о пациенте
 }
 
 /**
@@ -658,15 +659,23 @@ export async function archiveAndRemovePatient(patientId: string, deletedByEmail:
   }
 }
 /**
- * Обновляет смайлик для всех записей конкретного пациента (по ФИО и Дате рождения)
+ * Обновляет профиль пациента (смайлик и общие заметки) для всех его записей
  */
-export async function updatePatientEmoji(name: string, birthDate: string | null, emoji: string | null): Promise<void> {
+export async function updatePatientProfile(
+  name: string,
+  birthDate: string | null,
+  updates: { emoji?: string | null, notes?: string | null }
+): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
 
+    const dbUpdates: any = {}
+    if (updates.emoji !== undefined) dbUpdates.emoji = updates.emoji
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes
+
     let query = supabase
       .from('patients')
-      .update({ emoji })
+      .update(dbUpdates)
       .eq('ФИО', name)
 
     if (birthDate) {
@@ -676,12 +685,9 @@ export async function updatePatientEmoji(name: string, birthDate: string | null,
     }
 
     const { error } = await query
-
-    if (error) {
-      throw error
-    }
+    if (error) throw error
   } catch (error) {
-    logger.error('Ошибка при обновлении смайлика пациента:', error)
+    logger.error('Ошибка при обновлении профиля пациента:', error)
     throw error
   }
 }

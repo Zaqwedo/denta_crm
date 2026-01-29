@@ -21,6 +21,7 @@ export default async function CardIndexPage() {
         birthDate: string | null
         phones: string[]
         emoji: string | null
+        notes: string | null
         records: PatientData[]
     }> = {}
 
@@ -35,13 +36,17 @@ export default async function CardIndexPage() {
                 birthDate: p['Дата рождения пациента'] || null,
                 phones: [],
                 emoji: p.emoji || null,
+                notes: p.notes || null,
                 records: []
             }
         }
 
-        // Если в какой-то из записей есть эмодзи, используем его (или обновляем на более старый если нет в первой)
+        // Если есть эмодзи или заметки в любой из записей
         if (p.emoji && !groupedPatients[key].emoji) {
             groupedPatients[key].emoji = p.emoji
+        }
+        if (p.notes && !groupedPatients[key].notes) {
+            groupedPatients[key].notes = p.notes
         }
 
         if (p.Телефон && !groupedPatients[key].phones.includes(p.Телефон)) {

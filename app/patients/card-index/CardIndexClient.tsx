@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { PatientData, updatePatientEmoji } from '@/lib/supabase-db'
+import { useState, useMemo, useEffect } from 'react'
+import { PatientData, updatePatientProfile } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
 
 interface ClientInfo {
@@ -9,6 +9,7 @@ interface ClientInfo {
     birthDate: string | null
     phones: string[]
     emoji: string | null
+    notes: string | null // Общая заметка о пациенте
     records: PatientData[]
 }
 
@@ -17,7 +18,15 @@ const EMOJI_SET = ['👍🏻', '⛔️', '⚠️', '✅', '😡', '❤️', '�
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
-    const [isUpdatingEmoji, setIsUpdatingEmoji] = useState(false)
+    const [isUpdating, setIsUpdating] = useState(false)
+    const [localNotes, setLocalNotes] = useState('')
+
+    // Синхронизация локального состояния комментария при выборе клиента
+    useEffect(() => {
+        if (selectedClient) {
+            setLocalNotes(selectedClient.notes || '')
+        }
+    }, [selectedClient])
 
     // Состояния для фильтров
     const [showFilters, setShowFilters] = useState(false)
@@ -26,7 +35,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
 
-    // Уникальные списки врачей и медсестер из всех записей
+    // Уникальные списки врачей и медсестер
     const doctors = useMemo(() => {
         const unique = new Set<string>()
         initialData.forEach(client => {
@@ -47,62 +56,61 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         return Array.from(unique).sort()
     }, [initialData])
 
-    // Логика фильтрации
     const filteredData = useMemo(() => {
         return initialData.filter(client => {
-            // Поиск по имени/телефону
             const matchesSearch = !searchTerm ||
                 client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 client.phones.some(p => p.includes(searchTerm))
 
             if (!matchesSearch) return false
 
-            // Проверяем записи клиента на соответствие фильтрам
-            const matchingRecords = client.records.filter(record => {
-                // Фильтр по врачу
+            const hasActiveFilters = selectedDoctor || selectedNurse || startDate || endDate
+            if (!hasActiveFilters) return true
+
+            return client.records.some(record => {
                 const matchesDoctor = !selectedDoctor || record.Доктор === selectedDoctor
-
-                // Фильтр по медсестре
                 const matchesNurse = !selectedNurse || record.Медсестра === selectedNurse
-
-                // Фильтр по дате
                 let matchesDate = true
                 if (record['Дата записи']) {
                     const recDate = record['Дата записи']
                     if (startDate && recDate < startDate) matchesDate = false
                     if (endDate && recDate > endDate) matchesDate = false
                 } else if (startDate || endDate) {
-                    matchesDate = false // Если есть фильтр по дате, но у записи нет даты
+                    matchesDate = false
                 }
-
                 return matchesDoctor && matchesNurse && matchesDate
             })
-
-            // Клиент отображается, только если у него есть записи, подходящие под фильтры
-            // (Или если фильтры врачей/дат не установлены вовсе)
-            const hasActiveFilters = selectedDoctor || selectedNurse || startDate || endDate
-            return !hasActiveFilters || matchingRecords.length > 0
         })
     }, [initialData, searchTerm, selectedDoctor, selectedNurse, startDate, endDate])
 
     const handleEmojiSelect = async (emoji: string) => {
         if (!selectedClient) return
-
         const newEmoji = selectedClient.emoji === emoji ? null : emoji
-
-        setIsUpdatingEmoji(true)
+        setIsUpdating(true)
         try {
-            await updatePatientEmoji(selectedClient.name, selectedClient.birthDate, newEmoji)
+            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { emoji: newEmoji })
             setSelectedClient({ ...selectedClient, emoji: newEmoji })
-
-            const clientIdx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
-            if (clientIdx !== -1) {
-                initialData[clientIdx].emoji = newEmoji
-            }
+            const idx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
+            if (idx !== -1) initialData[idx].emoji = newEmoji
         } catch (err) {
-            alert('Не удалось обновить смайлик')
+            alert('Ошибка при обновлении реакции')
         } finally {
-            setIsUpdatingEmoji(false)
+            setIsUpdating(false)
+        }
+    }
+
+    const handleSaveNotes = async () => {
+        if (!selectedClient) return
+        setIsUpdating(true)
+        try {
+            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { notes: localNotes })
+            setSelectedClient({ ...selectedClient, notes: localNotes })
+            const idx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
+            if (idx !== -1) initialData[idx].notes = localNotes
+        } catch (err) {
+            alert('Ошибка при сохранении комментария')
+        } finally {
+            setIsUpdating(false)
         }
     }
 
@@ -155,10 +163,32 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         </div>
                     </div>
 
+                    {/* Поле комментария */}
+                    <div className="mb-6 pt-4 border-t border-gray-50">
+                        <label className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-2">Написать комментарий</label>
+                        <div className="flex gap-2">
+                            <textarea
+                                value={localNotes}
+                                onChange={(e) => setLocalNotes(e.target.value)}
+                                placeholder="Общая информация о пациенте..."
+                                className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none h-20"
+                            />
+                            <button
+                                onClick={handleSaveNotes}
+                                disabled={isUpdating || localNotes === (selectedClient.notes || '')}
+                                className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-opacity flex items-center justify-center self-end"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
                     {/* Панель выбора смайлика */}
                     <div className="border-t pt-4">
-                        <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-3">Указать реакцию пациента</span>
-                        <div className={`flex justify-between items-center gap-2 ${isUpdatingEmoji ? 'opacity-50 pointer-events-none' : ''}`}>
+                        <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-3">указать реакцию</span>
+                        <div className={`flex justify-between items-center gap-2 ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}>
                             {EMOJI_SET.map(emoji => (
                                 <button
                                     key={emoji}
