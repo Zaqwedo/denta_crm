@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { PatientData, updatePatientProfile, mergePatients } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 
 interface ClientInfo {
     name: string
@@ -16,6 +17,7 @@ interface ClientInfo {
 const EMOJI_SET = ['👍🏻', '⛔️', '⚠️', '✅', '😡', '❤️', '🤔']
 
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
+    const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
     const [isUpdating, setIsUpdating] = useState(false)
@@ -31,6 +33,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     // Состояния для дублей
     const [showDuplicates, setShowDuplicates] = useState(false)
     const [merging, setMerging] = useState(false)
+    const [previewClient, setPreviewClient] = useState<ClientInfo | null>(null)
 
     useEffect(() => {
         if (selectedClient) {
@@ -47,14 +50,16 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 const cleanPhone = phone.replace(/\D/g, '')
                 if (cleanPhone.length >= 10) {
                     if (!phoneMap[cleanPhone]) phoneMap[cleanPhone] = []
-                    phoneMap[cleanPhone].push(client)
+                    // Проверяем, чтобы не добавлять одного и того же клиента дважды в одну группу
+                    if (!phoneMap[cleanPhone].find(c => c.name === client.name && c.birthDate === client.birthDate)) {
+                        phoneMap[cleanPhone].push(client)
+                    }
                 }
             })
         })
 
         const duplicateGroups: Array<{ phone: string, clients: ClientInfo[] }> = []
         Object.entries(phoneMap).forEach(([phone, clients]) => {
-            // Если в группе больше одного уникального клиента (уже сгруппированных по ФИО+ДР)
             if (clients.length > 1) {
                 duplicateGroups.push({ phone, clients })
             }
@@ -71,7 +76,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 { name: source.name, birthDate: source.birthDate },
                 { name: target.name, birthDate: target.birthDate, emoji: target.emoji || source.emoji, notes: target.notes || source.notes }
             )
-            // После успешного объединения нужно перезагрузить страницу или обновить локальное состояние
             window.location.reload()
         } catch (err) {
             alert('Ошибка при объединении')
@@ -234,9 +238,13 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     {selectedClient.records
                         .sort((a, b) => (b['Дата записи'] || '').localeCompare(a['Дата записи'] || ''))
                         .map((record, index) => (
-                            <div key={record.id || index} className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50">
+                            <div
+                                key={record.id || index}
+                                onClick={() => router.push(`/patients/${record.id}`)}
+                                className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all active:scale-[0.99] group"
+                            >
                                 <div className="flex justify-between items-start mb-3">
-                                    <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
+                                    <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                         {record['Дата записи'] ? new Date(record['Дата записи']).toLocaleDateString('ru-RU') : 'Дата не указана'} {record['Время записи'] ? formatTime(record['Время записи']) : ''}
                                     </div>
                                     <div className={`px-3 py-1 rounded-full text-xs font-bold ${record.Статус?.includes('Завершен') ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
@@ -262,9 +270,12 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                 {record.Комментарии && (
                                     <div>
                                         <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Комментарий</span>
-                                        <p className="text-sm text-gray-600 leading-relaxed italic">"{record.Комментарии}"</p>
+                                        <p className="text-sm text-gray-600 leading-relaxed italic group-hover:text-gray-900 transition-colors">"{record.Комментарии}"</p>
                                     </div>
                                 )}
+                                <div className="mt-3 text-right text-xs text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Открыть запись →
+                                </div>
                             </div>
                         ))}
                 </div>
@@ -276,6 +287,52 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     return (
         <div className="space-y-4">
+            {/* Превью дубля (Модальное окно) */}
+            {previewClient && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[28px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-6 bg-amber-50 border-b border-amber-100">
+                            <h4 className="text-amber-900 font-bold text-lg mb-1">Информация о дубле</h4>
+                            <p className="text-amber-700/70 text-sm">Проверьте данные перед объединением</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">ФИО</span>
+                                <p className="text-gray-900 font-bold">{previewClient.name}</p>
+                            </div>
+                            <div>
+                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Номер телефона</span>
+                                <p className="text-blue-600 font-bold">{previewClient.phones.join(', ')}</p>
+                            </div>
+                            <div>
+                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Дата рождения</span>
+                                <p className="text-gray-900 font-medium">
+                                    {previewClient.birthDate ? new Date(previewClient.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}
+                                </p>
+                            </div>
+                            {previewClient.notes && (
+                                <div>
+                                    <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Комментарий</span>
+                                    <p className="text-sm text-gray-600 italic">"{previewClient.notes}"</p>
+                                </div>
+                            )}
+                            <div>
+                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Всего посещений</span>
+                                <p className="text-gray-900 font-medium">{previewClient.records.length}</p>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 flex flex-col gap-2">
+                            <button
+                                onClick={() => setPreviewClient(null)}
+                                className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform"
+                            >
+                                Закрыть
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Поиск */}
             <div className="relative">
                 <input
@@ -315,7 +372,10 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                     <div className="space-y-3">
                                         {group.clients.map((c, cIdx) => (
                                             <div key={cIdx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                                                <div>
+                                                <div
+                                                    onClick={() => setPreviewClient(c)}
+                                                    className="cursor-pointer hover:opacity-70 transition-opacity flex-1"
+                                                >
                                                     <p className="font-bold text-gray-900 text-sm">{c.name}</p>
                                                     <p className="text-xs text-gray-500">{c.birthDate || 'Без ДР'}</p>
                                                 </div>
@@ -324,8 +384,11 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                                 ) : (
                                                     <button
                                                         disabled={merging}
-                                                        onClick={() => handleMerge(c, group.clients[0])}
-                                                        className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 transition-colors disabled:opacity-50"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleMerge(c, group.clients[0]);
+                                                        }}
+                                                        className="z-10 text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 transition-colors disabled:opacity-50"
                                                     >
                                                         В главную
                                                     </button>
