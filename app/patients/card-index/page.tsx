@@ -22,6 +22,7 @@ export default async function CardIndexPage() {
         phones: string[]
         emoji: string | null
         notes: string | null
+        ignoredIds: string[]
         records: PatientData[]
     }> = {}
 
@@ -37,6 +38,7 @@ export default async function CardIndexPage() {
                 phones: [],
                 emoji: p.emoji || null,
                 notes: p.notes || null,
+                ignoredIds: [],
                 records: []
             }
         }
@@ -47,6 +49,16 @@ export default async function CardIndexPage() {
         }
         if (p.notes && !groupedPatients[key].notes) {
             groupedPatients[key].notes = p.notes
+        }
+
+        // Накапливаем все ID игнорируемых дублей
+        if (p.ignored_duplicate_id) {
+            const ids = p.ignored_duplicate_id.split(',')
+            ids.forEach(id => {
+                if (!groupedPatients[key].ignoredIds.includes(id)) {
+                    groupedPatients[key].ignoredIds.push(id)
+                }
+            })
         }
 
         if (p.Телефон && !groupedPatients[key].phones.includes(p.Телефон)) {

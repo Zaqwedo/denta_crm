@@ -38,6 +38,7 @@ export interface PatientData {
   created_by_email?: string; // Почта того, кто создал запись
   emoji?: string; // Смайлик пациента
   notes?: string; // Общая заметка о пациенте
+  ignored_duplicate_id?: string; // ID игнорируемого дубликата
 }
 
 /**
@@ -702,7 +703,7 @@ export async function mergePatients(
   try {
     await safeEnsureAnonymousSession()
 
-    // 1. Обновляем все записи source пациента
+    // Обновляем все записи source пациента, меняя их ФИО и ДР на таргетные
     let query = supabase
       .from('patients')
       .update({
@@ -723,6 +724,52 @@ export async function mergePatients(
     if (error) throw error
   } catch (error) {
     logger.error('Ошибка при объединении пациентов:', error)
+    throw error
+  }
+}
+
+/**
+ * Помечает двух пациентов как "не дубликаты"
+ */
+export async function ignoreDuplicate(
+  client1: { name: string, birthDate: string | null },
+  client2: { name: string, birthDate: string | null }
+): Promise<void> {
+  try {
+    await safeEnsureAnonymousSession()
+
+    // Генерируем уникальную метку для пары (сортируем, чтобы порядок был всегда один)
+    const pair1 = `${client1.name}|${client1.birthDate || ''}`
+    const pair2 = `${client2.name}|${client2.birthDate || ''}`
+    const pairTag = [pair1, pair2].sort().join(':::')
+
+    // Добавляем этот тег в массив ignored_duplicate_id для всех записей обоих клиентов
+    // Это позволит фильтровать их при поиске дублей
+
+    const updateRecords = async (name: string, birth: string | null) => {
+      // Сначала получаем текущие значения
+      let q = supabase.from('patients').select('ignored_duplicate_id').eq('ФИО', name)
+      if (birth) q = q.eq('Дата рождения пациента', birth)
+      else q = q.is('Дата рождения пациента', null)
+
+      const { data } = await q
+      if (!data) return
+
+      for (const rec of data) {
+        const current = rec.ignored_duplicate_id || ''
+        const updated = current ? `${current},${pairTag}` : pairTag
+
+        let upQ = supabase.from('patients').update({ ignored_duplicate_id: updated }).eq('ФИО', name)
+        if (birth) upQ = upQ.eq('Дата рождения пациента', birth)
+        else upQ = upQ.is('Дата рождения пациента', null)
+        await upQ
+      }
+    }
+
+    await updateRecords(client1.name, client1.birthDate)
+    await updateRecords(client2.name, client2.birthDate)
+  } catch (error) {
+    logger.error('Ошибка при игнорировании дублей:', error)
     throw error
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { PatientData, updatePatientProfile, mergePatients } from '@/lib/supabase-db'
+import { PatientData, updatePatientProfile, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
@@ -11,6 +11,7 @@ interface ClientInfo {
     phones: string[]
     emoji: string | null
     notes: string | null
+    ignoredIds: string[]
     records: PatientData[]
 }
 
@@ -35,6 +36,14 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const [merging, setMerging] = useState(false)
     const [previewClient, setPreviewClient] = useState<ClientInfo | null>(null)
 
+    // Состояние для разрешения конфликтов при объединении
+    const [mergeConflict, setMergeConflict] = useState<{
+        source: ClientInfo,
+        target: ClientInfo,
+        chosenName: string,
+        chosenBirthDate: string | null
+    } | null>(null)
+
     useEffect(() => {
         if (selectedClient) {
             setLocalNotes(selectedClient.notes || '')
@@ -50,7 +59,8 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 const cleanPhone = phone.replace(/\D/g, '')
                 if (cleanPhone.length >= 10) {
                     if (!phoneMap[cleanPhone]) phoneMap[cleanPhone] = []
-                    // Проверяем, чтобы не добавлять одного и того же клиента дважды в одну группу
+
+                    // Проверяем, не добавлен ли уже этот клиент в группу по этому телефону
                     if (!phoneMap[cleanPhone].find(c => c.name === client.name && c.birthDate === client.birthDate)) {
                         phoneMap[cleanPhone].push(client)
                     }
@@ -61,24 +71,101 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         const duplicateGroups: Array<{ phone: string, clients: ClientInfo[] }> = []
         Object.entries(phoneMap).forEach(([phone, clients]) => {
             if (clients.length > 1) {
-                duplicateGroups.push({ phone, clients })
+                // Фильтруем дубликаты, которые были помечены как "игнорировать"
+                const activeClients: ClientInfo[] = []
+
+                for (let i = 0; i < clients.length; i++) {
+                    const c1 = clients[i]
+                    const c1Tag = `${c1.name}|${c1.birthDate || ''}`
+
+                    // Проверяем, нет ли этого клиента в списке игнорируемых для других в этой группе
+                    let isIgnoredAcrossGroup = false
+                    for (let j = 0; j < clients.length; j++) {
+                        if (i === j) continue
+                        const c2 = clients[j]
+                        const c2Tag = `${c2.name}|${c2.birthDate || ''}`
+                        const pairTag = [c1Tag, c2Tag].sort().join(':::')
+
+                        if (c1.ignoredIds.includes(pairTag) || c2.ignoredIds.includes(pairTag)) {
+                            // Если хоть одна пара игнорируется, мы не показываем их как дубли друг друга
+                            // Но в группе может быть 3 человека, поэтому логика сложнее.
+                            // Для простоты: если клиент i игнорирует любого другого в текущей группе, 
+                            // мы помечаем это соединение как неактивное.
+                        }
+                    }
+
+                    // Упрощенная логика: клиент остается в группе, если он не игнорирует "главного" (первого) в группе
+                    if (i === 0) {
+                        activeClients.push(c1)
+                    } else {
+                        const target = clients[0]
+                        const targetTag = `${target.name}|${target.birthDate || ''}`
+                        const pairTag = [c1Tag, targetTag].sort().join(':::')
+                        if (!c1.ignoredIds.includes(pairTag) && !target.ignoredIds.includes(pairTag)) {
+                            activeClients.push(c1)
+                        }
+                    }
+                }
+
+                if (activeClients.length > 1) {
+                    duplicateGroups.push({ phone, clients: activeClients })
+                }
             }
         })
         return duplicateGroups
     }, [initialData])
 
-    const handleMerge = async (source: ClientInfo, target: ClientInfo) => {
-        if (!confirm(`Объединить ${source.name} в карточку ${target.name}? Все записи будут перенесены.`)) return
+    const startMerge = (source: ClientInfo, target: ClientInfo) => {
+        // Проверяем на конфликты ФИО и Даты рождения
+        const hasConflict = source.name !== target.name || source.birthDate !== target.birthDate
+
+        if (hasConflict) {
+            setMergeConflict({
+                source,
+                target,
+                chosenName: target.name,
+                chosenBirthDate: target.birthDate
+            })
+        } else {
+            confirmAndMerge(source, target, target.name, target.birthDate)
+        }
+    }
+
+    const confirmAndMerge = async (source: ClientInfo, target: ClientInfo, finalName: string, finalBirth: string | null) => {
+        if (!confirm(`Объединить записи ${source.name} в карточку ${finalName}?`)) return
 
         setMerging(true)
         try {
             await mergePatients(
                 { name: source.name, birthDate: source.birthDate },
-                { name: target.name, birthDate: target.birthDate, emoji: target.emoji || source.emoji, notes: target.notes || source.notes }
+                {
+                    name: finalName,
+                    birthDate: finalBirth,
+                    emoji: target.emoji || source.emoji,
+                    notes: target.notes || source.notes
+                }
             )
+            setMergeConflict(null)
             window.location.reload()
         } catch (err) {
             alert('Ошибка при объединении')
+        } finally {
+            setMerging(false)
+        }
+    }
+
+    const handleIgnoreDuplicate = async (source: ClientInfo, target: ClientInfo) => {
+        if (!confirm(`Больше не показывать ${source.name} и ${target.name} как дубликаты?`)) return
+
+        setMerging(true)
+        try {
+            await ignoreDuplicate(
+                { name: source.name, birthDate: source.birthDate },
+                { name: target.name, birthDate: target.birthDate }
+            )
+            window.location.reload()
+        } catch (err) {
+            alert('Ошибка при сохранении')
         } finally {
             setMerging(false)
         }
@@ -158,6 +245,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         }
     }
 
+    // Рендер истории посещений для выбранного клиента
     if (selectedClient) {
         return (
             <div className="animate-in fade-in slide-in-from-right duration-300">
@@ -273,9 +361,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                         <p className="text-sm text-gray-600 leading-relaxed italic group-hover:text-gray-900 transition-colors">"{record.Комментарии}"</p>
                                     </div>
                                 )}
-                                <div className="mt-3 text-right text-xs text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Открыть запись →
-                                </div>
                             </div>
                         ))}
                 </div>
@@ -287,9 +372,82 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     return (
         <div className="space-y-4">
-            {/* Превью дубля (Модальное окно) */}
+            {/* Модальное окно разрешения конфликтов при объединении */}
+            {mergeConflict && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="p-6 bg-blue-600 text-white">
+                            <h4 className="font-bold text-xl mb-1">Разрешение конфликтов</h4>
+                            <p className="text-blue-100 text-sm">Данные в карточках различаются. Выберите верные:</p>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {/* Выбор имени */}
+                            {mergeConflict.source.name !== mergeConflict.target.name && (
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-3 tracking-widest">Выберите ФИО</label>
+                                    <div className="space-y-2">
+                                        {[mergeConflict.target, mergeConflict.source].map((c, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => setMergeConflict({ ...mergeConflict, chosenName: c.name })}
+                                                className={`w-full p-4 text-left rounded-2xl border-2 transition-all ${mergeConflict.chosenName === c.name
+                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                        : 'border-gray-100 hover:border-gray-200 text-gray-700'
+                                                    }`}
+                                            >
+                                                <div className="font-bold">{c.name}</div>
+                                                <div className="text-xs opacity-60">{i === 0 ? 'Из главной карточки' : 'Из дубликата'}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Выбор даты рождения */}
+                            {mergeConflict.source.birthDate !== mergeConflict.target.birthDate && (
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-3 tracking-widest">Выберите Дату Рождения</label>
+                                    <div className="space-y-2">
+                                        {[mergeConflict.target, mergeConflict.source].map((c, i) => (
+                                            <button
+                                                key={i}
+                                                onClick={() => setMergeConflict({ ...mergeConflict, chosenBirthDate: c.birthDate })}
+                                                className={`w-full p-4 text-left rounded-2xl border-2 transition-all ${mergeConflict.chosenBirthDate === c.birthDate
+                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                        : 'border-gray-100 hover:border-gray-200 text-gray-700'
+                                                    }`}
+                                            >
+                                                <div className="font-bold">{c.birthDate ? new Date(c.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}</div>
+                                                <div className="text-xs opacity-60">{i === 0 ? 'Из главной карточки' : 'Из дубликата'}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-6 bg-gray-50 flex gap-3">
+                            <button
+                                onClick={() => setMergeConflict(null)}
+                                className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all"
+                            >
+                                Отмена
+                            </button>
+                            <button
+                                onClick={() => confirmAndMerge(mergeConflict.source, mergeConflict.target, mergeConflict.chosenName, mergeConflict.chosenBirthDate)}
+                                className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all"
+                            >
+                                Подтвердить и объединить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Модальное окно просмотра данных дубля */}
             {previewClient && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 text-left">
                     <div className="bg-white rounded-[28px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="p-6 bg-amber-50 border-b border-amber-100">
                             <h4 className="text-amber-900 font-bold text-lg mb-1">Информация о дубле</h4>
@@ -316,16 +474,9 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                     <p className="text-sm text-gray-600 italic">"{previewClient.notes}"</p>
                                 </div>
                             )}
-                            <div>
-                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Всего посещений</span>
-                                <p className="text-gray-900 font-medium">{previewClient.records.length}</p>
-                            </div>
                         </div>
-                        <div className="p-4 bg-gray-50 flex flex-col gap-2">
-                            <button
-                                onClick={() => setPreviewClient(null)}
-                                className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform"
-                            >
+                        <div className="p-4 bg-gray-50">
+                            <button onClick={() => setPreviewClient(null)} className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform">
                                 Закрыть
                             </button>
                         </div>
@@ -357,41 +508,41 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                             </svg>
                             Найдено дублей: {potentialDuplicates.length}
                         </div>
-                        <button
-                            onClick={() => setShowDuplicates(!showDuplicates)}
-                            className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider"
-                        >
+                        <button onClick={() => setShowDuplicates(!showDuplicates)} className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">
                             {showDuplicates ? 'Скрыть' : 'Показать'}
                         </button>
                     </div>
                     {showDuplicates && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4">
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4 text-left">
                             {potentialDuplicates.map((group, gIdx) => (
                                 <div key={gIdx} className="bg-white rounded-xl p-4 border border-amber-200">
                                     <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Номер: {group.phone}</p>
                                     <div className="space-y-3">
                                         {group.clients.map((c, cIdx) => (
-                                            <div key={cIdx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                                                <div
-                                                    onClick={() => setPreviewClient(c)}
-                                                    className="cursor-pointer hover:opacity-70 transition-opacity flex-1"
-                                                >
-                                                    <p className="font-bold text-gray-900 text-sm">{c.name}</p>
+                                            <div key={cIdx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg gap-2">
+                                                <div onClick={() => setPreviewClient(c)} className="cursor-pointer hover:opacity-70 transition-opacity flex-1 min-w-0">
+                                                    <p className="font-bold text-gray-900 text-sm truncate">{c.name}</p>
                                                     <p className="text-xs text-gray-500">{c.birthDate || 'Без ДР'}</p>
                                                 </div>
                                                 {cIdx === 0 ? (
-                                                    <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded uppercase">Главная</span>
+                                                    <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded uppercase shrink-0">Главная</span>
                                                 ) : (
-                                                    <button
-                                                        disabled={merging}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleMerge(c, group.clients[0]);
-                                                        }}
-                                                        className="z-10 text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 transition-colors disabled:opacity-50"
-                                                    >
-                                                        В главную
-                                                    </button>
+                                                    <div className="flex gap-2 shrink-0">
+                                                        <button
+                                                            disabled={merging}
+                                                            onClick={(e) => { e.stopPropagation(); handleIgnoreDuplicate(c, group.clients[0]); }}
+                                                            className="text-[10px] font-bold text-gray-400 hover:text-red-500 px-2 py-1 transition-colors"
+                                                        >
+                                                            Не объед.
+                                                        </button>
+                                                        <button
+                                                            disabled={merging}
+                                                            onClick={(e) => { e.stopPropagation(); startMerge(c, group.clients[0]); }}
+                                                            className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg active:scale-95 transition-all"
+                                                        >
+                                                            Объединить
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         ))}
@@ -403,25 +554,14 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 </div>
             )}
 
-            {/* Кнопка фильтров */}
-            <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters
-                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-200'
-                        : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'
-                    }`}
-            >
+            {/* Тело списка */}
+            <button onClick={() => setShowFilters(!showFilters)} className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters ? 'bg-blue-100 text-blue-700 border-2 border-blue-200' : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'}`}>
                 <div className="flex items-center gap-2">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
                     <span>Фильтры {hasActiveFilters && '(активны)'}</span>
                 </div>
-                <svg className={`h-5 w-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                <svg className={`h-5 w-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
-
             {showFilters && (
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200">
                     <div className="grid grid-cols-2 gap-4">
@@ -453,28 +593,11 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     )}
                 </div>
             )}
-
             <div className="space-y-3">
                 {filteredData.length > 0 ? (
                     filteredData.map((client, idx) => (
                         <div key={idx} onClick={() => setSelectedClient(client)} className="bg-white p-5 rounded-[20px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-between items-center group overflow-hidden relative">
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    {client.emoji && <span className="text-2xl">{client.emoji}</span>}
-                                    <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{client.name}</h3>
-                                </div>
-                                <p className="text-sm text-gray-500 font-medium ml-1">
-                                    {client.birthDate ? new Date(client.birthDate).toLocaleDateString('ru-RU') : 'Дата рождения не указана'}
-                                </p>
-                                <div className="flex gap-2 mt-2 ml-1">
-                                    <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold">
-                                        {client.records.length} {client.records.length === 1 ? 'посещение' : client.records.length < 5 ? 'посещения' : 'посещений'}
-                                    </span>
-                                </div>
-                            </div>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
+                            <div className="flex-1"><div className="flex items-center gap-2 mb-1">{client.emoji && <span className="text-2xl">{client.emoji}</span>}<h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{client.name}</h3></div><p className="text-sm text-gray-500 font-medium ml-1">{client.birthDate ? new Date(client.birthDate).toLocaleDateString('ru-RU') : 'Дата рождения не указана'}</p><div className="flex gap-2 mt-2 ml-1"><span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold text-left">{client.records.length} {client.records.length === 1 ? 'посещение' : client.records.length < 5 ? 'посещения' : 'посещений'}</span></div></div><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </div>
                     ))
                 ) : (
