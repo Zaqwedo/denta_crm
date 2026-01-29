@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { PatientData, updatePatientProfile, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET } from '@/lib/constants'
 
 interface ClientInfo {
     name: string
@@ -14,8 +15,6 @@ interface ClientInfo {
     ignoredIds: string[]
     records: PatientData[]
 }
-
-const EMOJI_SET = ['👍🏻', '⛔️', '⚠️', '✅', '😡', '❤️', '🤔']
 
 // Вспомогательная функция для нормализации ФИО (для сравнения)
 const normalizeName = (name: string) => {
@@ -253,7 +252,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const doctors = useMemo(() => {
         const unique = new Set<string>()
         initialData.forEach(client => {
-            client.records.forEach(r => { if (r.Доктор) unique.add(r.Доктор) })
+            client.records.forEach(r => { if (r[DB_COLUMNS.DOCTOR]) unique.add(r[DB_COLUMNS.DOCTOR] as string) })
         })
         return Array.from(unique).sort()
     }, [initialData])
@@ -261,7 +260,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const nurses = useMemo(() => {
         const unique = new Set<string>()
         initialData.forEach(client => {
-            client.records.forEach(r => { if (r.Медсестра) unique.add(r.Медсестра) })
+            client.records.forEach(r => { if (r[DB_COLUMNS.NURSE]) unique.add(r[DB_COLUMNS.NURSE] as string) })
         })
         return Array.from(unique).sort()
     }, [initialData])
@@ -278,11 +277,11 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             if (!hasActiveFilters) return true
 
             return client.records.some(record => {
-                const matchesDoctor = !selectedDoctor || record.Доктор === selectedDoctor
-                const matchesNurse = !selectedNurse || record.Медсестра === selectedNurse
+                const matchesDoctor = !selectedDoctor || record[DB_COLUMNS.DOCTOR] === selectedDoctor
+                const matchesNurse = !selectedNurse || record[DB_COLUMNS.NURSE] === selectedNurse
                 let matchesDate = true
-                if (record['Дата записи']) {
-                    const recDate = record['Дата записи']
+                if (record[DB_COLUMNS.DATE]) {
+                    const recDate = record[DB_COLUMNS.DATE] as string
                     if (startDate && recDate < startDate) matchesDate = false
                     if (endDate && recDate > endDate) matchesDate = false
                 }
@@ -296,7 +295,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         const newEmoji = selectedClient.emoji === emoji ? null : emoji
         setIsUpdating(true)
         try {
-            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { emoji: newEmoji })
+            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.EMOJI]: newEmoji || undefined })
             setSelectedClient({ ...selectedClient, emoji: newEmoji })
             const idx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
             if (idx !== -1) initialData[idx].emoji = newEmoji
@@ -311,7 +310,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         if (!selectedClient) return
         setIsUpdating(true)
         try {
-            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { notes: localNotes })
+            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.NOTES]: localNotes || undefined })
             setSelectedClient({ ...selectedClient, notes: localNotes })
             const idx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
             if (idx !== -1) initialData[idx].notes = localNotes
@@ -400,29 +399,29 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 <h3 className="text-xl font-bold text-gray-900 mb-4 px-2 text-left">История посещений</h3>
                 <div className="space-y-4">
                     {selectedClient.records
-                        .sort((a, b) => (b['Дата записи'] || '').localeCompare(a['Дата записи'] || ''))
+                        .sort((a, b) => ((b[DB_COLUMNS.DATE] as string) || '').localeCompare((a[DB_COLUMNS.DATE] as string) || ''))
                         .map((record, index) => (
                             <div
-                                key={record.id || index}
-                                onClick={() => router.push(`/patients/${record.id}`)}
+                                key={record[DB_COLUMNS.ID] || index}
+                                onClick={() => router.push(`/patients/${record[DB_COLUMNS.ID]}`)}
                                 className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all active:scale-[0.99] group text-left"
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                        {record['Дата записи'] ? new Date(record['Дата записи']).toLocaleDateString('ru-RU') : 'Дата не указана'} {record['Время записи'] ? formatTime(record['Время записи']) : ''}
+                                        {record[DB_COLUMNS.DATE] ? new Date(record[DB_COLUMNS.DATE] as string).toLocaleDateString('ru-RU') : 'Дата не указана'} {record[DB_COLUMNS.TIME] ? formatTime(record[DB_COLUMNS.TIME] as string) : ''}
                                     </div>
-                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${record.Статус?.includes('Завершен') ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
-                                        {record.Статус || 'Ожидает'}
+                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${record[DB_COLUMNS.STATUS]?.includes(RECORD_STATUS.COMPLETED) ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
+                                        {record[DB_COLUMNS.STATUS] || RECORD_STATUS.WAITING}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Врач</span>
-                                        <span className="text-sm font-medium text-gray-800">{record.Доктор || '—'}</span>
+                                        <span className="text-sm font-medium text-gray-800">{record[DB_COLUMNS.DOCTOR] || '—'}</span>
                                     </div>
                                     <div>
                                         <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Медсестра</span>
-                                        <span className="text-sm font-medium text-gray-800">{record.Медсестра || '—'}</span>
+                                        <span className="text-sm font-medium text-gray-800">{record[DB_COLUMNS.NURSE] || '—'}</span>
                                     </div>
                                 </div>
                             </div>

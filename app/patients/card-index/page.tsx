@@ -2,6 +2,7 @@ import { getPatients, PatientData } from '@/lib/supabase-db'
 import { ProtectedRoute } from '../../components/ProtectedRoute'
 import { TabBar } from '../TabBar'
 import { CardIndexClient } from './CardIndexClient'
+import { DB_COLUMNS } from '@/lib/constants'
 
 export const revalidate = 0 // Должно быть актуальным
 
@@ -27,9 +28,9 @@ export default async function CardIndexPage() {
     }> = {}
 
     patients.forEach(p => {
-        const name = p.ФИО || 'Без имени'
+        const name = p[DB_COLUMNS.NAME] || 'Без имени'
         // Нормализуем дату рождения для ключа (null, "" и undefined -> "нет-др")
-        const rawDob = p['Дата рождения пациента']
+        const rawDob = p[DB_COLUMNS.BIRTH_DATE]
         const dobKey = (!rawDob || rawDob === '') ? 'нет-др' : rawDob
         const key = `${name.trim().toLowerCase()}_${dobKey}`
 
@@ -38,24 +39,24 @@ export default async function CardIndexPage() {
                 name: name.trim(),
                 birthDate: (!rawDob || rawDob === '') ? null : rawDob,
                 phones: [],
-                emoji: p.emoji || null,
-                notes: p.notes || null,
+                emoji: p[DB_COLUMNS.EMOJI] || null,
+                notes: p[DB_COLUMNS.NOTES] || null,
                 ignoredIds: [],
                 records: []
             }
         }
 
         // Если есть эмодзи или заметки в любой из записей
-        if (p.emoji && !groupedPatients[key].emoji) {
-            groupedPatients[key].emoji = p.emoji
+        if (p[DB_COLUMNS.EMOJI] && !groupedPatients[key].emoji) {
+            groupedPatients[key].emoji = p[DB_COLUMNS.EMOJI] || null
         }
-        if (p.notes && !groupedPatients[key].notes) {
-            groupedPatients[key].notes = p.notes
+        if (p[DB_COLUMNS.NOTES] && !groupedPatients[key].notes) {
+            groupedPatients[key].notes = p[DB_COLUMNS.NOTES] || null
         }
 
         // Накапливаем все ID игнорируемых дублей
-        if (p.ignored_duplicate_id) {
-            const ids = p.ignored_duplicate_id.split(',')
+        if (p[DB_COLUMNS.IGNORED_ID]) {
+            const ids = p[DB_COLUMNS.IGNORED_ID]!.split(',')
             ids.forEach(id => {
                 if (!groupedPatients[key].ignoredIds.includes(id)) {
                     groupedPatients[key].ignoredIds.push(id)
@@ -63,8 +64,8 @@ export default async function CardIndexPage() {
             })
         }
 
-        if (p.Телефон && !groupedPatients[key].phones.includes(p.Телефон)) {
-            groupedPatients[key].phones.push(p.Телефон)
+        if (p[DB_COLUMNS.PHONE] && !groupedPatients[key].phones.includes(p[DB_COLUMNS.PHONE]!)) {
+            groupedPatients[key].phones.push(p[DB_COLUMNS.PHONE]!)
         }
 
         groupedPatients[key].records.push(p)

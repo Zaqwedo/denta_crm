@@ -5,6 +5,7 @@ import { logger } from './logger'
 import { getDoctorsForEmailByEmail, getNursesForEmailByEmail } from './admin-db'
 import { cookies } from 'next/headers'
 import { checkAdminAuth } from './auth-check'
+import { DB_COLUMNS, RECORD_STATUS } from './constants'
 
 /**
  * Безопасно устанавливает анонимную сессию, игнорируя ошибки об отключенной анонимной аутентификации
@@ -24,21 +25,21 @@ async function safeEnsureAnonymousSession(): Promise<void> {
 }
 
 export interface PatientData {
-  id?: string; // ID записи (UUID)
-  ФИО: string; // ФИО (обязательное)
-  Телефон?: string; // Телефон
-  Комментарии?: string; // Комментарии
-  'Дата записи'?: string; // Дата записи
-  'Время записи'?: string; // Время записи
-  Статус?: string; // Статус
-  Доктор?: string; // Доктор
-  Зубы?: string; // Зубы
-  Медсестра?: string; // Медсестра
-  'Дата рождения пациента'?: string; // Дата рождения пациента
-  created_by_email?: string; // Почта того, кто создал запись
-  emoji?: string; // Смайлик пациента
-  notes?: string; // Общая заметка о пациенте
-  ignored_duplicate_id?: string; // ID игнорируемого дубликата
+  [DB_COLUMNS.ID]?: string;
+  [DB_COLUMNS.NAME]: string;
+  [DB_COLUMNS.PHONE]?: string;
+  [DB_COLUMNS.COMMENT]?: string;
+  [DB_COLUMNS.DATE]?: string;
+  [DB_COLUMNS.TIME]?: string;
+  [DB_COLUMNS.STATUS]?: string;
+  [DB_COLUMNS.DOCTOR]?: string;
+  [DB_COLUMNS.TEETH]?: string;
+  [DB_COLUMNS.NURSE]?: string;
+  [DB_COLUMNS.BIRTH_DATE]?: string;
+  [DB_COLUMNS.CREATED_BY]?: string;
+  [DB_COLUMNS.EMOJI]?: string;
+  [DB_COLUMNS.NOTES]?: string;
+  [DB_COLUMNS.IGNORED_ID]?: string;
 }
 
 /**
@@ -104,12 +105,12 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
 
         // Если указаны врачи
         if (allowedDoctors.length > 0) {
-          query = query.in('Доктор', allowedDoctors.map(d => d.trim()))
+          query = query.in(DB_COLUMNS.DOCTOR, allowedDoctors.map(d => d.trim()))
 
           // Если также указаны медсестры, фильтруем записи этих врачей
           if (allowedNurses.length > 0) {
             const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
-            query = query.or(`Медсестра.in.(${nurses}),Медсестра.is.null,Медсестра.eq.""`)
+            query = query.or(`${DB_COLUMNS.NURSE}.in.(${nurses}),${DB_COLUMNS.NURSE}.is.null,${DB_COLUMNS.NURSE}.eq.""`)
             logger.info('getPatients: применен фильтр по врачам + ограничение по медсестрам', {
               doctors: allowedDoctors,
               nurses: allowedNurses
@@ -120,17 +121,17 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
         }
         // Если указаны только медсестры
         else if (allowedNurses.length > 0) {
-          query = query.in('Медсестра', allowedNurses.map(n => n.trim()))
+          query = query.in(DB_COLUMNS.NURSE, allowedNurses.map(n => n.trim()))
           logger.info('getPatients: применен фильтр только по медсестрам', { nurses: allowedNurses })
         }
         // Если ничего не указано - ничего не показываем
         else {
-          query = query.eq('Доктор', '__NONE__')
+          query = query.eq(DB_COLUMNS.DOCTOR, '__NONE__')
           logger.info('getPatients: нет разрешенных врачей/медсестер, доступ закрыт')
         }
       } else {
         // Если email не найден - НЕ показываем пациентов
-        query = query.eq('Доктор', '__NO_EMAIL__')
+        query = query.eq(DB_COLUMNS.DOCTOR, '__NO_EMAIL__')
       }
     } else {
       // Если админ, пытаемся получить email для логов, но не применяем фильтр
@@ -160,7 +161,7 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
 
     // Если есть данные, логируем уникальных врачей в результате
     if (data && data.length > 0) {
-      const uniqueDoctors = [...new Set(data.map(p => p.Доктор).filter(Boolean))]
+      const uniqueDoctors = [...new Set(data.map(p => p[DB_COLUMNS.DOCTOR]).filter(Boolean))] as string[]
       logger.info('getPatients: врачи в результате запроса', {
         email: email ? email.toLowerCase().trim() : 'не указан',
         uniqueDoctors,
@@ -333,18 +334,19 @@ export async function getChangedPatients(): Promise<PatientData[]> {
         const allowedNurses = await getNursesForEmailByEmail(normalizedEmail)
 
         if (allowedDoctors.length > 0) {
-          query = query.in('Доктор', allowedDoctors.map(d => d.trim()))
+          query = query.in(DB_COLUMNS.DOCTOR, allowedDoctors.map(d => d.trim()))
           if (allowedNurses.length > 0) {
             const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
-            query = query.or(`Медсестра.in.(${nurses}),Медсестра.is.null,Медсестра.eq.""`)
+            query = query.or(`${DB_COLUMNS.NURSE}.in.(${nurses}),${DB_COLUMNS.NURSE}.is.null,${DB_COLUMNS.NURSE}.eq.""`)
           }
         } else if (allowedNurses.length > 0) {
-          query = query.in('Медсестра', allowedNurses.map(n => n.trim()))
+          query = query.in(DB_COLUMNS.NURSE, allowedNurses.map(n => n.trim()))
         } else {
-          query = query.eq('Доктор', '__NONE__')
+          query = query.eq(DB_COLUMNS.DOCTOR, '__NONE__')
         }
       } else {
-        query = query.eq('Доктор', '__NO_EMAIL__')
+        // Если email не найден - НЕ показываем пациентов
+        query = query.eq(DB_COLUMNS.DOCTOR, '__NO_EMAIL__')
       }
     } else {
       logger.info('getChangedPatients: пользователь является админом, показываем всех пациентов без фильтрации')
@@ -420,7 +422,7 @@ export async function addPatient(data: PatientData): Promise<void> {
   logger.log('🚀 Supabase: addPatient вызван с данными:', data);
 
   // Валидация: ФИО является обязательным полем
-  if (!data.ФИО || data.ФИО.trim() === '') {
+  if (!data[DB_COLUMNS.NAME] || data[DB_COLUMNS.NAME].trim() === '') {
     throw new Error('ФИО пациента обязательно для заполнения.');
   }
 
@@ -465,16 +467,18 @@ async function savePatientChanges(
 
     // Маппинг русских названий полей на понятные названия
     const fieldMapping: Record<string, string> = {
-      'ФИО': 'ФИО',
-      'Телефон': 'Телефон',
-      'Комментарии': 'Комментарии',
-      'Дата записи': 'Дата записи',
-      'Время записи': 'Время записи',
-      'Статус': 'Статус',
-      'Доктор': 'Доктор',
-      'Зубы': 'Зубы',
-      'Медсестра': 'Медсестра',
-      'Дата рождения пациента': 'Дата рождения',
+      [DB_COLUMNS.NAME]: 'ФИО',
+      [DB_COLUMNS.PHONE]: 'Телефон',
+      [DB_COLUMNS.COMMENT]: 'Комментарии',
+      [DB_COLUMNS.DATE]: 'Дата записи',
+      [DB_COLUMNS.TIME]: 'Время записи',
+      [DB_COLUMNS.STATUS]: 'Статус',
+      [DB_COLUMNS.DOCTOR]: 'Доктор',
+      [DB_COLUMNS.TEETH]: 'Зубы',
+      [DB_COLUMNS.NURSE]: 'Медсестра',
+      [DB_COLUMNS.BIRTH_DATE]: 'Дата рождения',
+      [DB_COLUMNS.EMOJI]: 'Смайлик',
+      [DB_COLUMNS.NOTES]: 'Общие заметки',
     }
 
     // Сравниваем каждое поле
@@ -662,27 +666,19 @@ export async function archiveAndRemovePatient(patientId: string, deletedByEmail:
 /**
  * Обновляет профиль пациента (смайлик и общие заметки) для всех его записей
  */
-export async function updatePatientProfile(
-  name: string,
-  birthDate: string | null,
-  updates: { emoji?: string | null, notes?: string | null }
-): Promise<void> {
+export async function updatePatientProfile(name: string, birthDate: string | null, updates: Partial<PatientData>): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
 
-    const dbUpdates: any = {}
-    if (updates.emoji !== undefined) dbUpdates.emoji = updates.emoji
-    if (updates.notes !== undefined) dbUpdates.notes = updates.notes
-
     let query = supabase
       .from('patients')
-      .update(dbUpdates)
-      .eq('ФИО', name)
+      .update(updates)
+      .eq(DB_COLUMNS.NAME, name)
 
     if (birthDate) {
-      query = query.eq('Дата рождения пациента', birthDate)
+      query = query.eq(DB_COLUMNS.BIRTH_DATE, birthDate)
     } else {
-      query = query.is('Дата рождения пациента', null)
+      query = query.is(DB_COLUMNS.BIRTH_DATE, null)
     }
 
     const { error } = await query
@@ -719,12 +715,12 @@ export async function mergePatients(
     const { data, error } = await supabase
       .from('patients')
       .update({
-        'ФИО': target.name,
-        'Дата рождения пациента': target.birthDate,
-        'emoji': target.emoji,
-        'notes': target.notes
+        [DB_COLUMNS.NAME]: target.name,
+        [DB_COLUMNS.BIRTH_DATE]: target.birthDate,
+        [DB_COLUMNS.EMOJI]: target.emoji,
+        [DB_COLUMNS.NOTES]: target.notes
       })
-      .in('id', sourceRecordIds)
+      .in(DB_COLUMNS.ID, sourceRecordIds)
       .select(); // Добавляем select чтобы увидеть результат
 
     if (error) {
@@ -751,35 +747,35 @@ export async function ignoreDuplicate(
     await safeEnsureAnonymousSession()
 
     // Генерируем уникальную метку для пары (сортируем, чтобы порядок был всегда один)
-    const pair1 = `${client1.name}|${client1.birthDate || ''}`
-    const pair2 = `${client2.name}|${client2.birthDate || ''}`
-    const pairTag = [pair1, pair2].sort().join(':::')
+    const p1 = client1
+    const p2 = client2
+    const pair1 = `${p1.name}|${p1.birthDate || ''}`
+    const pair2 = `${p2.name}|${p2.birthDate || ''}`
+    const pairId = [pair1, pair2].sort().join(':::')
 
     // Добавляем этот тег в массив ignored_duplicate_id для всех записей обоих клиентов
     // Это позволит фильтровать их при поиске дублей
 
-    const updateRecords = async (name: string, birth: string | null) => {
-      // Сначала получаем текущие значения
-      let q = supabase.from('patients').select('ignored_duplicate_id').eq('ФИО', name)
-      if (birth) q = q.eq('Дата рождения пациента', birth)
-      else q = q.is('Дата рождения пациента', null)
+    for (const p of [p1, p2]) {
+      const name = p.name
+      const birth = p.birthDate
+
+      let q = supabase.from('patients').select(DB_COLUMNS.IGNORED_ID).eq(DB_COLUMNS.NAME, name)
+      if (birth) q = q.eq(DB_COLUMNS.BIRTH_DATE, birth)
+      else q = q.is(DB_COLUMNS.BIRTH_DATE, null)
 
       const { data } = await q
-      if (!data) return
+      if (data && data.length > 0) {
+        const current = data[0][DB_COLUMNS.IGNORED_ID] || ''
+        const updated = current ? `${current},${pairId}` : pairId
 
-      for (const rec of data) {
-        const current = rec.ignored_duplicate_id || ''
-        const updated = current ? `${current},${pairTag}` : pairTag
+        let upQ = supabase.from('patients').update({ [DB_COLUMNS.IGNORED_ID]: updated }).eq(DB_COLUMNS.NAME, name)
+        if (birth) upQ = upQ.eq(DB_COLUMNS.BIRTH_DATE, birth)
+        else upQ = upQ.is(DB_COLUMNS.BIRTH_DATE, null)
 
-        let upQ = supabase.from('patients').update({ ignored_duplicate_id: updated }).eq('ФИО', name)
-        if (birth) upQ = upQ.eq('Дата рождения пациента', birth)
-        else upQ = upQ.is('Дата рождения пациента', null)
         await upQ
       }
     }
-
-    await updateRecords(client1.name, client1.birthDate)
-    await updateRecords(client2.name, client2.birthDate)
   } catch (error) {
     logger.error('Ошибка при игнорировании дублей:', error)
     throw error

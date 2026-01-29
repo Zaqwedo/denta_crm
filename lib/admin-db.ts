@@ -3,6 +3,8 @@
 import { supabase, ensureAnonymousSession, getSupabaseAdmin } from './supabase'
 import { logger } from './logger'
 
+import { PASSWORD_STATUS } from './constants'
+
 /**
  * Безопасно устанавливает анонимную сессию
  */
@@ -623,7 +625,7 @@ export interface RegisteredUser {
   created_at: string
   updated_at: string
   password_hash: string | null // NULL если пароль сброшен
-  password_status: 'установлен' | 'сброшен' // Вычисляемое поле
+  password_status: typeof PASSWORD_STATUS[keyof typeof PASSWORD_STATUS] // Вычисляемое поле
 }
 
 export async function getRegisteredUsers(): Promise<RegisteredUser[]> {
@@ -644,8 +646,8 @@ export async function getRegisteredUsers(): Promise<RegisteredUser[]> {
     // Пустая строка также считается как "сброшен" (временное решение до выполнения SQL скрипта)
     return (data || []).map(user => ({
       ...user,
-      password_status: (user.password_hash && user.password_hash.trim() !== '') ? 'установлен' : 'сброшен'
-    }))
+      password_status: (user.password_hash && user.password_hash.trim() !== '') ? PASSWORD_STATUS.SET : PASSWORD_STATUS.RESET
+    })) as RegisteredUser[]
   } catch (error) {
     logger.error('Ошибка получения зарегистрированных пользователей:', error)
     return []
