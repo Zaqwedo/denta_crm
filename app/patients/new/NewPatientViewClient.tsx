@@ -45,6 +45,13 @@ function convertToISODate(dateStr: string): string {
   return `${year}-${month}-${day}`
 }
 
+// Функция для конвертации из YYYY-MM-DD в DD.MM.YYYY
+function convertISOToDisplay(isoStr: string): string {
+  if (!isoStr || !isoStr.includes('-')) return isoStr || ''
+  const [year, month, day] = isoStr.split('-')
+  return `${day}.${month}.${year}`
+}
+
 interface NewPatientViewClientProps {
   initialDate?: string
 }
@@ -59,6 +66,7 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
   const [error, setError] = useState<string | null>(null)
   const [phoneValue, setPhoneValue] = useState('+7 (')
   const [birthDateDisplay, setBirthDateDisplay] = useState('')
+  const [appointmentDateDisplay, setAppointmentDateDisplay] = useState(initialDate ? convertISOToDisplay(initialDate) : convertISOToDisplay(new Date().toISOString().split('T')[0]))
 
   // Используем дату из пропса или сегодняшнюю
   const initialDateValue = initialDate || new Date().toISOString().split('T')[0]
@@ -102,6 +110,18 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
       setFormData({ ...formData, birthDate: convertToISODate(formatted) })
     } else {
       setFormData({ ...formData, birthDate: '' })
+    }
+  }
+
+  function handleAppointmentDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setAppointmentDateDisplay(formatted)
+
+    if (formatted.length === 10) {
+      setFormData({ ...formData, date: convertToISODate(formatted) })
+    } else {
+      setFormData({ ...formData, date: '' })
     }
   }
 
@@ -250,16 +270,19 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
                   Дата приема
                 </label>
                 <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  type="text"
+                  inputMode="numeric"
+                  name="dateDisplay"
+                  value={appointmentDateDisplay}
+                  onChange={handleAppointmentDateChange}
                   className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
                   style={{
                     width: '100%',
                     maxWidth: '100%',
                     boxSizing: 'border-box'
                   }}
+                  placeholder="ДД.ММ.ГГГГ"
+                  maxLength={10}
                 />
               </div>
 

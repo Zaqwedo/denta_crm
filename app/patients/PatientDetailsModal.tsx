@@ -52,6 +52,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingClose, setPendingClose] = useState(false)
   const [birthDateDisplay, setBirthDateDisplay] = useState('')
+  const [appointmentDateDisplay, setAppointmentDateDisplay] = useState('')
   const router = useRouter()
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -134,10 +135,11 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
     setInitialData(newInitialData)
     setFormData(newInitialData)
     setBirthDateDisplay(birthDate ? convertISOToDisplay(birthDate) : '')
+    setAppointmentDateDisplay(date ? convertISOToDisplay(date) : '')
     setError(null)
     setShowConfirmModal(false)
     setPendingClose(false)
-  }, [patient, isOpen, name, phone, formattedDate, time, doctor, status, comments, birthDate, teeth, nurse])
+  }, [patient, isOpen, name, phone, formattedDate, time, doctor, status, comments, birthDate, teeth, nurse, date])
 
   function handleBirthDateChange(e: React.ChangeEvent<HTMLInputElement>) {
     const input = e.target.value
@@ -148,6 +150,18 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       setFormData({ ...formData, birthDate: convertToISODate(formatted) })
     } else {
       setFormData({ ...formData, birthDate: '' })
+    }
+  }
+
+  function handleAppointmentDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setAppointmentDateDisplay(formatted)
+
+    if (formatted.length === 10) {
+      setFormData({ ...formData, date: convertToISODate(formatted) })
+    } else {
+      setFormData({ ...formData, date: '' })
     }
   }
 
@@ -394,12 +408,15 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                     Дата приема
                   </label>
                   <input
-                    type="date"
-                    name="date"
-                    value={formData.date}
-                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    type="text"
+                    inputMode="numeric"
+                    name="dateDisplay"
+                    value={appointmentDateDisplay}
+                    onChange={handleAppointmentDateChange}
                     required
                     className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="ДД.ММ.ГГГГ"
+                    maxLength={10}
                   />
                 </div>
 

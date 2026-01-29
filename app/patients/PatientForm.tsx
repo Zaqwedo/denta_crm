@@ -26,6 +26,13 @@ function convertToISODate(dateStr: string): string {
   return `${year}-${month}-${day}`
 }
 
+// Функция для конвертации из YYYY-MM-DD в DD.MM.YYYY
+function convertISOToDisplay(isoStr: string): string {
+  if (!isoStr || !isoStr.includes('-')) return isoStr || ''
+  const [year, month, day] = isoStr.split('-')
+  return `${day}.${month}.${year}`
+}
+
 // Функция для форматирования телефона с маской
 function formatPhone(value: string): string {
   // Удаляем все нецифровые символы
@@ -68,6 +75,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
   const [error, setError] = useState<string | null>(null)
   const [phoneValue, setPhoneValue] = useState('+7 (')
   const [birthDateDisplay, setBirthDateDisplay] = useState('')
+  const [appointmentDateDisplay, setAppointmentDateDisplay] = useState(initialDate ? convertISOToDisplay(initialDate) : convertISOToDisplay(new Date().toISOString().split('T')[0]))
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -109,6 +117,14 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
       formData.set('birthDate', '')
     }
 
+    // Конвертируем дату приема перед отправкой
+    if (appointmentDateDisplay.length === 10) {
+      formData.set('date', convertToISODate(appointmentDateDisplay))
+    } else {
+      // Если дата не введена или не полная, оставляем исходную или сегодняшнюю
+      formData.set('date', initialDate || new Date().toISOString().split('T')[0])
+    }
+
     try {
       const result = await handleAddPatient(formData)
 
@@ -116,6 +132,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
         onClose?.() // Используем onClose из пропсов
         setPhoneValue('+7 (')
         setBirthDateDisplay('')
+        setAppointmentDateDisplay(convertISOToDisplay(new Date().toISOString().split('T')[0]))
         // Сбрасываем форму
         e.currentTarget.reset()
         // Обновляем страницу
@@ -155,6 +172,12 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
     setBirthDateDisplay(formatted)
   }
 
+  function handleAppointmentDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setAppointmentDateDisplay(formatted)
+  }
+
   return (
     <>
       {!isModal && (
@@ -178,6 +201,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                   setError(null)
                   setPhoneValue('+7 (')
                   setBirthDateDisplay('')
+                  setAppointmentDateDisplay(initialDate ? convertISOToDisplay(initialDate) : convertISOToDisplay(new Date().toISOString().split('T')[0]))
                 }}
                 className="text-gray-400 hover:text-gray-600 text-2xl"
               >
@@ -243,11 +267,15 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                     Дата приема
                   </label>
                   <input
-                    type="date"
+                    type="text"
+                    inputMode="numeric"
                     id="date"
-                    name="date"
+                    name="dateDisplay"
+                    value={appointmentDateDisplay}
+                    onChange={handleAppointmentDateChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    defaultValue={initialDate || new Date().toISOString().split('T')[0]} // Используем initialDate
+                    placeholder="ДД.ММ.ГГГГ"
+                    maxLength={10}
                   />
                 </div>
 
@@ -352,6 +380,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                       setError(null)
                       setPhoneValue('+7 (')
                       setBirthDateDisplay('')
+                      setAppointmentDateDisplay(initialDate ? convertISOToDisplay(initialDate) : convertISOToDisplay(new Date().toISOString().split('T')[0]))
                     }}
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     disabled={isSubmitting}

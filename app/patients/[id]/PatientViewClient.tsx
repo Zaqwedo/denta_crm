@@ -54,6 +54,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [birthDateDisplay, setBirthDateDisplay] = useState(initialPatient?.birthDate ? convertISOToDisplay(initialPatient.birthDate) : '')
+  const [appointmentDateDisplay, setAppointmentDateDisplay] = useState(initialPatient?.date ? convertISOToDisplay(initialPatient.date) : '')
   const nameInputRef = useRef<HTMLInputElement>(null)
 
   // Отладочное логирование (только в development)
@@ -159,6 +160,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       setInitialData(newInitialData)
       setFormData(newInitialData)
       setBirthDateDisplay(initialPatient.birthDate ? convertISOToDisplay(initialPatient.birthDate) : '')
+      setAppointmentDateDisplay(initialPatient.date ? convertISOToDisplay(initialPatient.date) : '')
       setShowConfirmModal(false)
       setPendingNavigation(null)
     }
@@ -173,6 +175,18 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       setFormData({ ...formData, birthDate: convertToISODate(formatted) })
     } else {
       setFormData({ ...formData, birthDate: '' })
+    }
+  }
+
+  function handleAppointmentDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setAppointmentDateDisplay(formatted)
+
+    if (formatted.length === 10) {
+      setFormData({ ...formData, date: convertToISODate(formatted) })
+    } else {
+      setFormData({ ...formData, date: '' })
     }
   }
 
@@ -418,17 +432,20 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
                   Дата приема
                 </label>
                 <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  type="text"
+                  inputMode="numeric"
+                  name="dateDisplay"
+                  value={appointmentDateDisplay}
+                  onChange={handleAppointmentDateChange}
                   required
-                  className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
+                  className="w-full max-w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
                   style={{
                     width: '100%',
                     maxWidth: '100%',
                     boxSizing: 'border-box'
                   }}
+                  placeholder="ДД.ММ.ГГГГ"
+                  maxLength={10}
                 />
               </div>
 
