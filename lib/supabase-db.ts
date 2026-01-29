@@ -36,6 +36,7 @@ export interface PatientData {
   Медсестра?: string; // Медсестра
   'Дата рождения пациента'?: string; // Дата рождения пациента
   created_by_email?: string; // Почта того, кто создал запись
+  emoji?: string; // Смайлик пациента
 }
 
 /**
@@ -654,5 +655,33 @@ export async function archiveAndRemovePatient(patientId: string, deletedByEmail:
   } catch (error) {
     logger.error('❌ Ошибка в archiveAndRemovePatient:', error);
     throw error;
+  }
+}
+/**
+ * Обновляет смайлик для всех записей конкретного пациента (по ФИО и Дате рождения)
+ */
+export async function updatePatientEmoji(name: string, birthDate: string | null, emoji: string | null): Promise<void> {
+  try {
+    await safeEnsureAnonymousSession()
+
+    let query = supabase
+      .from('patients')
+      .update({ emoji })
+      .eq('ФИО', name)
+
+    if (birthDate) {
+      query = query.eq('Дата рождения пациента', birthDate)
+    } else {
+      query = query.is('Дата рождения пациента', null)
+    }
+
+    const { error } = await query
+
+    if (error) {
+      throw error
+    }
+  } catch (error) {
+    logger.error('Ошибка при обновлении смайлика пациента:', error)
+    throw error
   }
 }

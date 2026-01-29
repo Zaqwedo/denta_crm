@@ -116,6 +116,25 @@ const AdminIcon = ({ size = 24, className = '' }: { size?: number; className?: s
   </svg>
 )
 
+const CardIndexIcon = ({ size = 24, className = '' }: { size?: number; className?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+    <circle cx="9" cy="7" r="4"></circle>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+  </svg>
+)
+
 export function TabBar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -152,7 +171,7 @@ export function TabBar() {
 
   // Нормализуем pathname (убираем trailing slash)
   const normalizedPathname = pathname?.replace(/\/$/, '') || ''
-  
+
   // Отладка (только в development)
   if (process.env.NODE_ENV === 'development') {
     console.log('📍 TabBar pathname:', pathname, 'normalized:', normalizedPathname)
@@ -173,6 +192,12 @@ export function TabBar() {
       href: '/calendar',
       icon: CalendarIcon,
       active: normalizedPathname === '/calendar' || normalizedPathname.startsWith('/calendar/')
+    },
+    {
+      name: 'Картотека',
+      href: '/patients/card-index',
+      icon: CardIndexIcon,
+      active: normalizedPathname === '/patients/card-index' || normalizedPathname.startsWith('/patients/card-index/')
     },
     {
       name: 'Изменения',
@@ -211,11 +236,10 @@ export function TabBar() {
                     tab.onClick()
                   }
                 }}
-                className={`flex flex-col items-center px-3 py-2 rounded-xl transition-colors ${
-                  tab.active
+                className={`flex flex-col items-center px-3 py-2 rounded-xl transition-colors ${tab.active
                     ? 'text-blue-600 bg-blue-50'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 <Icon size={22} className="mb-1" />
                 <span className="text-xs font-medium">{tab.name}</span>

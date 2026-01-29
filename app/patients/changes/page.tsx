@@ -27,21 +27,21 @@ export default async function ChangesPage() {
   )
 }
 
-function ChangesPageContent({ 
-  changedPatients, 
-  error 
-}: { 
-  changedPatients: Array<Record<string, any>>, 
-  error: string | null 
+function ChangesPageContent({
+  changedPatients,
+  error
+}: {
+  changedPatients: Array<Record<string, any>>,
+  error: string | null
 }) {
   // Функция для форматирования даты изменения
   const formatChangeDate = (updatedAt: string | null, createdAt: string | null) => {
     if (!updatedAt) return null
-    
+
     try {
       const updated = new Date(updatedAt)
       const created = createdAt ? new Date(createdAt) : null
-      
+
       // Если updated_at и created_at одинаковые (с точностью до секунды), значит запись не изменялась
       if (created) {
         const diff = Math.abs(updated.getTime() - created.getTime())
@@ -60,7 +60,7 @@ function ChangesPageContent({
       if (diffMins < 60) return `${diffMins} ${diffMins === 1 ? 'минуту' : diffMins < 5 ? 'минуты' : 'минут'} назад`
       if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'час' : diffHours < 5 ? 'часа' : 'часов'} назад`
       if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'день' : diffDays < 5 ? 'дня' : 'дней'} назад`
-      
+
       return updated.toLocaleDateString('ru-RU', {
         day: 'numeric',
         month: 'long',
@@ -127,6 +127,7 @@ function ChangesPageContent({
                 doctor: patient.Доктор || null,
                 status: patient.Статус || null,
                 nurse: patient.Медсестра || null,
+                emoji: patient.emoji || null,
               }
 
               const changeDate = formatChangeDate(patient.updated_at, patient.created_at)

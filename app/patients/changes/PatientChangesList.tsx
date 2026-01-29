@@ -13,6 +13,7 @@ interface PatientChangesListProps {
     doctor: string | null
     status: string | null
     nurse?: string | null
+    emoji?: string | null
   }
   changeDate: string | null
 }
@@ -33,18 +34,18 @@ export function PatientChangesList({ patient, changeDate }: PatientChangesListPr
       try {
         const response = await fetch(`/api/patients/${patient.id}/changes`)
         const data = await response.json()
-        
+
         if (data.success && data.changes) {
           // Группируем изменения по дате (последние изменения для каждого поля)
           const latestChanges = new Map<string, typeof data.changes[0]>()
-          
+
           data.changes.forEach((change: typeof data.changes[0]) => {
             const existing = latestChanges.get(change.field_name)
             if (!existing || new Date(change.changed_at) > new Date(existing.changed_at)) {
               latestChanges.set(change.field_name, change)
             }
           })
-          
+
           setChanges(Array.from(latestChanges.values()))
         }
       } catch (error) {
@@ -65,7 +66,7 @@ export function PatientChangesList({ patient, changeDate }: PatientChangesListPr
         patient={patient}
         rowIndex={0}
       />
-      
+
       {changeDate && (
         <div className="ml-5 space-y-2">
           <button
