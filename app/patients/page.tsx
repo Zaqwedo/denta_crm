@@ -95,6 +95,7 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
               nurse: patient.Медсестра || null,
               birthDate: patient['Дата рождения пациента'] || null,
               emoji: patient.emoji || null,
+              comments: patient.Комментарии || null,
             }))}
           />
         )}

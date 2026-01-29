@@ -15,6 +15,7 @@ interface Patient {
   nurse?: string | null
   birthDate?: string | null
   emoji?: string | null
+  comments?: string | null
 }
 
 interface PatientsListProps {
@@ -64,6 +65,7 @@ export function PatientsList({ patients }: PatientsListProps) {
       nurse: patient.nurse || null,
       birthDate: patient.birthDate || null,
       emoji: patient.emoji || null,
+      comments: patient.comments || null,
     }))
 
     // Сортировка по дате и времени приёма (desc - от новых к старым)

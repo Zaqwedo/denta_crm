@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { PatientData, updatePatientEmoji } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
 
@@ -19,15 +19,75 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
     const [isUpdatingEmoji, setIsUpdatingEmoji] = useState(false)
 
-    const filteredData = initialData.filter(client =>
-        client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.phones.some(p => p.includes(searchTerm))
-    )
+    // Состояния для фильтров
+    const [showFilters, setShowFilters] = useState(false)
+    const [selectedDoctor, setSelectedDoctor] = useState('')
+    const [selectedNurse, setSelectedNurse] = useState('')
+    const [startDate, setStartDate] = useState('')
+    const [endDate, setEndDate] = useState('')
+
+    // Уникальные списки врачей и медсестер из всех записей
+    const doctors = useMemo(() => {
+        const unique = new Set<string>()
+        initialData.forEach(client => {
+            client.records.forEach(r => {
+                if (r.Доктор) unique.add(r.Доктор)
+            })
+        })
+        return Array.from(unique).sort()
+    }, [initialData])
+
+    const nurses = useMemo(() => {
+        const unique = new Set<string>()
+        initialData.forEach(client => {
+            client.records.forEach(r => {
+                if (r.Медсестра) unique.add(r.Медсестра)
+            })
+        })
+        return Array.from(unique).sort()
+    }, [initialData])
+
+    // Логика фильтрации
+    const filteredData = useMemo(() => {
+        return initialData.filter(client => {
+            // Поиск по имени/телефону
+            const matchesSearch = !searchTerm ||
+                client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                client.phones.some(p => p.includes(searchTerm))
+
+            if (!matchesSearch) return false
+
+            // Проверяем записи клиента на соответствие фильтрам
+            const matchingRecords = client.records.filter(record => {
+                // Фильтр по врачу
+                const matchesDoctor = !selectedDoctor || record.Доктор === selectedDoctor
+
+                // Фильтр по медсестре
+                const matchesNurse = !selectedNurse || record.Медсестра === selectedNurse
+
+                // Фильтр по дате
+                let matchesDate = true
+                if (record['Дата записи']) {
+                    const recDate = record['Дата записи']
+                    if (startDate && recDate < startDate) matchesDate = false
+                    if (endDate && recDate > endDate) matchesDate = false
+                } else if (startDate || endDate) {
+                    matchesDate = false // Если есть фильтр по дате, но у записи нет даты
+                }
+
+                return matchesDoctor && matchesNurse && matchesDate
+            })
+
+            // Клиент отображается, только если у него есть записи, подходящие под фильтры
+            // (Или если фильтры врачей/дат не установлены вовсе)
+            const hasActiveFilters = selectedDoctor || selectedNurse || startDate || endDate
+            return !hasActiveFilters || matchingRecords.length > 0
+        })
+    }, [initialData, searchTerm, selectedDoctor, selectedNurse, startDate, endDate])
 
     const handleEmojiSelect = async (emoji: string) => {
         if (!selectedClient) return
 
-        // Если кликнули на уже выбранный смайлик — снимаем его
         const newEmoji = selectedClient.emoji === emoji ? null : emoji
 
         setIsUpdatingEmoji(true)
@@ -35,7 +95,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             await updatePatientEmoji(selectedClient.name, selectedClient.birthDate, newEmoji)
             setSelectedClient({ ...selectedClient, emoji: newEmoji })
 
-            // Обновляем эмодзи в общем списке initialData (локально)
             const clientIdx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
             if (clientIdx !== -1) {
                 initialData[clientIdx].emoji = newEmoji
@@ -98,7 +157,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
                     {/* Панель выбора смайлика */}
                     <div className="border-t pt-4">
-                        <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-3">Указать статус пациента</span>
+                        <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-3">Указать реакцию пациента</span>
                         <div className={`flex justify-between items-center gap-2 ${isUpdatingEmoji ? 'opacity-50 pointer-events-none' : ''}`}>
                             {EMOJI_SET.map(emoji => (
                                 <button
@@ -166,8 +225,10 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         )
     }
 
+    const hasActiveFilters = selectedDoctor || selectedNurse || startDate || endDate
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             {/* Поиск */}
             <div className="relative">
                 <input
@@ -181,6 +242,88 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
             </div>
+
+            {/* Кнопка фильтров */}
+            <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters
+                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-200'
+                    : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'
+                    }`}
+            >
+                <div className="flex items-center gap-2">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span>Фильтры {hasActiveFilters && '(активны)'}</span>
+                </div>
+                <svg className={`h-5 w-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+
+            {/* Панель фильтров */}
+            {showFilters && (
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Врач</label>
+                            <select
+                                value={selectedDoctor}
+                                onChange={(e) => setSelectedDoctor(e.target.value)}
+                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                            >
+                                <option value="">Все врачи</option>
+                                {doctors.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Медсестра</label>
+                            <select
+                                value={selectedNurse}
+                                onChange={(e) => setSelectedNurse(e.target.value)}
+                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                            >
+                                <option value="">Все медсестры</option>
+                                {nurses.map(n => <option key={n} value={n}>{n}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Диапазон дат записи</label>
+                        <div className="flex gap-2 items-center">
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                            />
+                            <span className="text-gray-300">—</span>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    {hasActiveFilters && (
+                        <button
+                            onClick={() => {
+                                setSelectedDoctor('')
+                                setSelectedNurse('')
+                                setStartDate('')
+                                setEndDate('')
+                            }}
+                            className="w-full py-3 text-red-600 font-bold text-sm bg-red-50 rounded-xl"
+                        >
+                            Сбросить все
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Список клиентов */}
             <div className="space-y-3">

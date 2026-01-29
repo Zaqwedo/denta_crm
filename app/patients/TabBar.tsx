@@ -182,7 +182,7 @@ export function TabBar() {
 
   const tabs = [
     {
-      name: 'Список',
+      name: 'Записи',
       href: '/patients',
       icon: ListIcon,
       active: normalizedPathname === '/patients'
@@ -237,8 +237,8 @@ export function TabBar() {
                   }
                 }}
                 className={`flex flex-col items-center px-3 py-2 rounded-xl transition-colors ${tab.active
-                    ? 'text-blue-600 bg-blue-50'
-                    : 'text-gray-600 hover:text-gray-900'
+                  ? 'text-blue-600 bg-blue-50'
+                  : 'text-gray-600 hover:text-gray-900'
                   }`}
               >
                 <Icon size={22} className="mb-1" />

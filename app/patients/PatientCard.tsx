@@ -13,7 +13,7 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
   const router = useRouter()
 
   // Доступ к полям напрямую из объекта patient
-  const { id, name, phone, date, time, doctor, status, birthDate, nurse, emoji } = patient
+  const { id, name, phone, date, time, doctor, status, birthDate, nurse, emoji, comments } = patient
 
   const formattedTime = formatTime(time) // "HH:MM"
   const formattedPhone = phone ? `+${phone.replace(/\D/g, '').replace(/(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/, '$1 ($2) $3-$4-$5')}` : 'Не указан'
@@ -106,6 +106,14 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
           </span>
         )}
       </div>
+
+      {comments && (
+        <div className="mt-4 pt-3 border-t border-gray-50">
+          <p className="text-sm text-gray-500 italic leading-snug">
+            "{comments}"
+          </p>
+        </div>
+      )}
     </div>
   )
 }
