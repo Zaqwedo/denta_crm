@@ -5,6 +5,7 @@ import crypto from 'crypto'
 import { cookies } from 'next/headers'
 import { getWhitelistEmails } from '@/lib/admin-db'
 import { revalidatePath } from 'next/cache'
+import { createToken } from '@/lib/auth-token'
 
 function verifyPassword(password: string, hashedPassword: string): boolean {
   const [salt, hash] = hashedPassword.split(':')
@@ -40,18 +41,18 @@ export async function POST(req: NextRequest) {
       if (adminPassword && password === adminPassword) {
         const cookieStore = await cookies()
         const maxAge = 30 * 24 * 60 * 60
-        
-        // Устанавливаем обе cookies для админа
-        cookieStore.set('denta_auth', 'valid', {
+
+        // Устанавливаем обе cookies для админа (с подписью)
+        cookieStore.set('denta_auth', await createToken('admin'), {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           maxAge,
           path: '/',
         })
-        
-        // Устанавливаем admin_auth для проверки прав админа
-        cookieStore.set('admin_auth', 'valid', {
+
+        // Устанавливаем admin_auth для проверки прав админа (с подписью)
+        cookieStore.set('admin_auth', await createToken('admin'), {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
@@ -136,14 +137,14 @@ export async function POST(req: NextRequest) {
       // Проверяем все providers, так как email может быть в любом из них
       const allWhitelistEmails = await getWhitelistEmails(undefined) // Получаем все email без фильтра по provider
       const emailWhitelist = await getWhitelistEmails('email') // Только для email provider
-      
+
       const allNormalized = allWhitelistEmails.map(e => ({
         email: (e.email || '').toLowerCase().trim(),
         provider: e.provider
       })).filter(e => e.email)
-      
+
       const emailNormalized = emailWhitelist.map(e => (e.email || '').toLowerCase().trim()).filter(e => e)
-      
+
       console.log('Email login whitelist check (detailed):', {
         userEmail: normalizedEmail,
         allWhitelistEmails: allNormalized,
@@ -153,10 +154,10 @@ export async function POST(req: NextRequest) {
         allCount: allNormalized.length,
         emailCount: emailNormalized.length
       })
-      
+
       // Проверяем в общем списке (любой provider) или в списке для email
       const isInWhitelist = allNormalized.some(e => e.email === normalizedEmail) || emailNormalized.includes(normalizedEmail)
-      
+
       // Если есть хотя бы один email в whitelist и текущий email не в списке - запрещаем
       const totalWhitelistCount = allNormalized.length
       if (totalWhitelistCount > 0 && !isInWhitelist) {
@@ -178,18 +179,19 @@ export async function POST(req: NextRequest) {
     const cookieStore = await cookies()
     const maxAge = 30 * 24 * 60 * 60
     const userEmail = email.toLowerCase().trim()
-    
-    cookieStore.set('denta_auth', 'valid', {
+
+    // Устанавливаем подписанную куку
+    cookieStore.set('denta_auth', await createToken('user'), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge,
       path: '/',
     })
-    
+
     // Удаляем admin_auth cookie при обычном входе (если была установлена ранее)
     cookieStore.delete('admin_auth')
-    
+
     // Сохраняем email в cookie для фильтрации пациентов
     cookieStore.set('denta_user_email', userEmail, {
       httpOnly: true,

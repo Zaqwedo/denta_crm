@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react'
 import { DOCTORS, NURSES, PATIENT_STATUSES } from '@/lib/constants'
 
 export function useConstants() {
-  const [doctors, setDoctors] = useState<string[]>(DOCTORS)
-  const [nurses, setNurses] = useState<string[]>(NURSES)
-  const [statuses] = useState<string[]>(PATIENT_STATUSES)
+  const [doctors, setDoctors] = useState<string[]>([...DOCTORS])
+  const [nurses, setNurses] = useState<string[]>([...NURSES])
+  const [statuses] = useState<string[]>([...PATIENT_STATUSES])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {

@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 // Проверяем наличие переменных
 if (!supabaseUrl || !supabaseAnonKey) {
   const errorMsg = '⚠️  Supabase не настроен: отсутствуют переменные окружения NEXT_PUBLIC_SUPABASE_URL или NEXT_PUBLIC_SUPABASE_ANON_KEY'
-  
+
   if (typeof window === 'undefined') {
     // Server-side
     console.error(errorMsg)
@@ -17,7 +17,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
     // Client-side
     console.error(errorMsg)
   }
-  
+
   // В production не падаем, но логируем ошибку
   if (process.env.NODE_ENV === 'production') {
     console.error('Приложение будет работать с ограниченной функциональностью')
@@ -89,39 +89,39 @@ export async function ensureAnonymousSession(): Promise<void> {
   anonymousSessionPromise = (async () => {
     try {
       const { data, error } = await supabase.auth.signInAnonymously()
-      
+
       if (error) {
         // Если анонимная аутентификация отключена, логируем и продолжаем без ошибки
-        if (error.message?.includes('Anonymous sign-ins are disabled') || 
-            (error as any)?.code === 'anonymous_provider_disabled' ||
-            (error as any)?.status === 422) {
+        if (error.message?.includes('Anonymous sign-ins are disabled') ||
+          (error as any)?.code === 'anonymous_provider_disabled' ||
+          (error as any)?.status === 422) {
           console.warn('⚠️  Анонимная аутентификация отключена в Supabase')
           console.warn('📋 Инструкция: Включите в Supabase Dashboard → Authentication → Settings → Enable Anonymous Sign-ins')
           // Не бросаем ошибку, просто возвращаемся - возможно RLS политики разрешают доступ
           anonymousSessionPromise = null
           return
         }
-        
+
         console.error('❌ Ошибка установки анонимной сессии Supabase:', error)
         // Сбрасываем promise при ошибке, чтобы можно было повторить
         anonymousSessionPromise = null
         throw error
       }
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log('✅ Анонимная сессия Supabase установлена для RLS')
       }
     } catch (error: any) {
       // Если это ошибка об отключенной анонимной аутентификации, просто продолжаем
-      if (error?.message?.includes('Anonymous sign-ins are disabled') || 
-          error?.code === 'anonymous_provider_disabled' ||
-          error?.status === 422) {
+      if (error?.message?.includes('Anonymous sign-ins are disabled') ||
+        error?.code === 'anonymous_provider_disabled' ||
+        error?.status === 422) {
         console.warn('⚠️  Анонимная аутентификация отключена в Supabase')
         console.warn('📋 Инструкция: Включите в Supabase Dashboard → Authentication → Settings → Enable Anonymous Sign-ins')
         anonymousSessionPromise = null
         return
       }
-      
+
       console.error('❌ Критическая ошибка: не удалось установить анонимную сессию Supabase:', error)
       // Сбрасываем promise при ошибке
       anonymousSessionPromise = null
@@ -151,6 +151,40 @@ export function getSupabaseAdmin() {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
+    },
+  })
+}
+
+/**
+ * Создает клиент Supabase с анонимным ключом и заголовком email пользователя
+ * Используется для работы RLS на основе email
+ * Email кодируется в base64 для поддержки кириллицы в HTTP заголовках
+ */
+export function getSupabaseUser(userEmail?: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return supabase
+  }
+
+  if (!userEmail) {
+    return supabase
+  }
+
+  // Кодируем email в base64 для передачи в HTTP заголовке
+  // Это необходимо для поддержки кириллических email
+  const emailBase64 = Buffer.from(userEmail.toLowerCase().trim()).toString('base64')
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+    global: {
+      headers: {
+        'x-denta-user-email-b64': emailBase64,
+      },
     },
   })
 }

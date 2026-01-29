@@ -1,6 +1,6 @@
 'use server';
 
-import { supabase, ensureAnonymousSession } from '../lib/supabase'
+import { supabase, ensureAnonymousSession, getSupabaseAdmin, getSupabaseUser } from '../lib/supabase'
 import { logger } from './logger'
 import { getDoctorsForEmailByEmail, getNursesForEmailByEmail } from './admin-db'
 import { cookies } from 'next/headers'
@@ -56,44 +56,34 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
     // Админ всегда видит всех пациентов без фильтрации
     const isAdmin = await checkAdminAuth()
 
+    // Пытаемся получить email пользователя
+    let email: string | undefined = userEmail
+    if (!email) {
+      try {
+        const cookieStore = await cookies()
+        const emailCookie = cookieStore.get('denta_user_email')
+        email = emailCookie?.value
+      } catch (error) {
+        // Игнорируем ошибки чтения cookie
+      }
+    }
+
     logger.info('getPatients: начало', {
       isAdmin,
-      userEmail,
+      userEmail: email,
       timestamp: new Date().toISOString(),
       warning: isAdmin ? 'Пользователь определяется как АДМИН - фильтрация НЕ применяется!' : 'Пользователь НЕ админ - фильтрация будет применена'
     })
 
-    let query = supabase.from('patients').select('*')
-    let email: string | undefined = userEmail // Объявляем email вне блока для использования в логах
+    // Выбираем соответствующий клиент (Админ bypasses RLS, User uses scoped client)
+    const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+    let query = client.from('patients').select('*')
 
     // Если пользователь не админ, применяем фильтрацию по врачам
     if (!isAdmin) {
-      // Если email не передан, пытаемся получить из cookie
-      if (!email) {
-        try {
-          const cookieStore = await cookies()
-          const emailCookie = cookieStore.get('denta_user_email')
-          email = emailCookie?.value
-          logger.info('getPatients: email получен из cookie', {
-            email: email,
-            hasCookie: !!emailCookie,
-            cookieValue: emailCookie?.value
-          })
-        } catch (error) {
-          logger.error('getPatients: ошибка чтения cookie', { error })
-          // Игнорируем ошибки чтения cookie
-        }
-      } else {
-        logger.info('getPatients: email передан как параметр', { email })
-      }
-
       // Если есть email пользователя, проверяем ограничения по врачам
       if (email) {
         const normalizedEmail = email.toLowerCase().trim()
-        logger.info('getPatients: проверка ограничений по врачам', {
-          email: normalizedEmail
-        })
-
         const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
         const allowedNurses = await getNursesForEmailByEmail(normalizedEmail)
 
@@ -111,39 +101,19 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
           if (allowedNurses.length > 0) {
             const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
             query = query.or(`${DB_COLUMNS.NURSE}.in.(${nurses}),${DB_COLUMNS.NURSE}.is.null,${DB_COLUMNS.NURSE}.eq.""`)
-            logger.info('getPatients: применен фильтр по врачам + ограничение по медсестрам', {
-              doctors: allowedDoctors,
-              nurses: allowedNurses
-            })
-          } else {
-            logger.info('getPatients: применен фильтр только по врачам', { doctors: allowedDoctors })
           }
         }
         // Если указаны только медсестры
         else if (allowedNurses.length > 0) {
           query = query.in(DB_COLUMNS.NURSE, allowedNurses.map(n => n.trim()))
-          logger.info('getPatients: применен фильтр только по медсестрам', { nurses: allowedNurses })
         }
         // Если ничего не указано - ничего не показываем
         else {
           query = query.eq(DB_COLUMNS.DOCTOR, '__NONE__')
-          logger.info('getPatients: нет разрешенных врачей/медсестер, доступ закрыт')
         }
       } else {
         // Если email не найден - НЕ показываем пациентов
         query = query.eq(DB_COLUMNS.DOCTOR, '__NO_EMAIL__')
-      }
-    } else {
-      // Если админ, пытаемся получить email для логов, но не применяем фильтр
-      logger.info('getPatients: пользователь является админом, показываем всех пациентов без фильтрации')
-      if (!email) {
-        try {
-          const cookieStore = await cookies()
-          const emailCookie = cookieStore.get('denta_user_email')
-          email = emailCookie?.value
-        } catch (error) {
-          // Игнорируем ошибки чтения cookie
-        }
       }
     }
     // Если админ - не применяем фильтрацию, показываем всех пациентов
@@ -272,7 +242,12 @@ export async function getPatientChanges(patientId: string): Promise<Array<{
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
 
-    const { data, error } = await supabase
+    const isAdmin = await checkAdminAuth()
+    const cookieStore = await cookies()
+    const email = cookieStore.get('denta_user_email')?.value
+    const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+
+    const { data, error } = await client
       .from('patient_changes')
       .select('field_name, old_value, new_value, changed_at, changed_by_email')
       .eq('patient_id', patientId)
@@ -304,29 +279,22 @@ export async function getChangedPatients(): Promise<PatientData[]> {
     // Проверяем, является ли пользователь админом
     const isAdmin = await checkAdminAuth()
 
+    // Пытаемся получить email пользователя
+    const cookieStore = await cookies()
+    const emailCookie = cookieStore.get('denta_user_email')
+    const email = emailCookie?.value
+
     logger.info('getChangedPatients: начало', {
       isAdmin,
+      userEmail: email,
       timestamp: new Date().toISOString(),
     })
 
-    let query = supabase.from('patients').select('*')
-    let email: string | undefined
+    const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+    let query = client.from('patients').select('*')
 
     // Если пользователь не админ, применяем фильтрацию по врачам
     if (!isAdmin) {
-      // Получаем email из cookie
-      try {
-        const cookieStore = await cookies()
-        const emailCookie = cookieStore.get('denta_user_email')
-        email = emailCookie?.value
-        logger.info('getChangedPatients: email получен из cookie', {
-          email: email,
-          hasCookie: !!emailCookie,
-        })
-      } catch (error) {
-        logger.error('getChangedPatients: ошибка чтения cookie', { error })
-      }
-
       // Если есть email пользователя, проверяем ограничения
       if (email) {
         const normalizedEmail = email.toLowerCase().trim()
@@ -430,7 +398,12 @@ export async function addPatient(data: PatientData): Promise<void> {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
 
-    const { error } = await supabase
+    const isAdmin = await checkAdminAuth()
+    const cookieStore = await cookies()
+    const email = cookieStore.get('denta_user_email')?.value
+    const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+
+    const { error } = await client
       .from('patients')
       .insert([data]);
 
@@ -539,8 +512,13 @@ export async function updatePatient(
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
 
+    const isAdmin = await checkAdminAuth()
+    const cookieStore = await cookies()
+    const email = cookieStore.get('denta_user_email')?.value
+    const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+
     // Получаем старые данные перед обновлением
-    const { data: oldData, error: fetchError } = await supabase
+    const { data: oldData, error: fetchError } = await client
       .from('patients')
       .select('*')
       .eq('id', patientId)
@@ -552,7 +530,7 @@ export async function updatePatient(
     }
 
     // Обновляем данные
-    const { error } = await supabase
+    const { error } = await client
       .from('patients')
       .update(updatedData)
       .eq('id', patientId)
@@ -670,7 +648,12 @@ export async function updatePatientProfile(name: string, birthDate: string | nul
   try {
     await safeEnsureAnonymousSession()
 
-    let query = supabase
+    const isAdmin = await checkAdminAuth()
+    const cookieStore = await cookies()
+    const email = cookieStore.get('denta_user_email')?.value
+    const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+
+    let query = client
       .from('patients')
       .update(updates)
       .eq(DB_COLUMNS.NAME, name)
