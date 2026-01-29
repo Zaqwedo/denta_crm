@@ -694,17 +694,19 @@ export async function updatePatientProfile(
 }
 
 /**
- * Объединяет двух пациентов: переносит все записи от одного к другому
+ * Объединяет пациентов по списку ID записей
  */
 export async function mergePatients(
-  source: { name: string, birthDate: string | null },
+  sourceRecordIds: string[],
   target: { name: string, birthDate: string | null, emoji?: string | null, notes?: string | null }
 ): Promise<void> {
   try {
+    if (!sourceRecordIds || sourceRecordIds.length === 0) return;
+
     await safeEnsureAnonymousSession()
 
-    // Обновляем все записи source пациента, меняя их ФИО и ДР на таргетные
-    let query = supabase
+    // Обновляем все записи переданных ID, меняя их ФИО и ДР на таргетные
+    const { error } = await supabase
       .from('patients')
       .update({
         'ФИО': target.name,
@@ -712,15 +714,8 @@ export async function mergePatients(
         'emoji': target.emoji,
         'notes': target.notes
       })
-      .eq('ФИО', source.name)
+      .in('id', sourceRecordIds)
 
-    if (source.birthDate) {
-      query = query.eq('Дата рождения пациента', source.birthDate)
-    } else {
-      query = query.is('Дата рождения пациента', null)
-    }
-
-    const { error } = await query
     if (error) throw error
   } catch (error) {
     logger.error('Ошибка при объединении пациентов:', error)

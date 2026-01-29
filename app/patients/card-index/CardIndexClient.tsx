@@ -17,6 +17,9 @@ interface ClientInfo {
 
 const EMOJI_SET = ['👍🏻', '⛔️', '⚠️', '✅', '😡', '❤️', '🤔']
 
+// Вспомогательная функция для нормализации ФИО (удаление лишних пробелов, перевод в нижний регистр)
+const normalizeName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
@@ -50,73 +53,80 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         }
     }, [selectedClient])
 
-    // Поиск дублей по номеру телефона
+    // Поиск дублей по номеру телефона и по именам
     const potentialDuplicates = useMemo(() => {
-        const phoneMap: Record<string, ClientInfo[]> = {}
+        const groups: ClientInfo[][] = []
+        const processedPairs = new Set<string>()
 
+        // 1. Группировка по телефону
+        const phoneMap: Record<string, ClientInfo[]> = {}
         initialData.forEach(client => {
             client.phones.forEach(phone => {
                 const cleanPhone = phone.replace(/\D/g, '')
                 if (cleanPhone.length >= 10) {
                     if (!phoneMap[cleanPhone]) phoneMap[cleanPhone] = []
-
-                    // Проверяем, не добавлен ли уже этот клиент в группу по этому телефону
                     if (!phoneMap[cleanPhone].find(c => c.name === client.name && c.birthDate === client.birthDate)) {
                         phoneMap[cleanPhone].push(client)
                     }
                 }
             })
         })
+        Object.values(phoneMap).forEach(group => {
+            if (group.length > 1) groups.push(group)
+        })
 
-        const duplicateGroups: Array<{ phone: string, clients: ClientInfo[] }> = []
-        Object.entries(phoneMap).forEach(([phone, clients]) => {
-            if (clients.length > 1) {
-                // Фильтруем дубликаты, которые были помечены как "игнорировать"
-                const activeClients: ClientInfo[] = []
-
-                for (let i = 0; i < clients.length; i++) {
-                    const c1 = clients[i]
-                    const c1Tag = `${c1.name}|${c1.birthDate || ''}`
-
-                    // Проверяем, нет ли этого клиента в списке игнорируемых для других в этой группе
-                    let isIgnoredAcrossGroup = false
-                    for (let j = 0; j < clients.length; j++) {
-                        if (i === j) continue
-                        const c2 = clients[j]
-                        const c2Tag = `${c2.name}|${c2.birthDate || ''}`
-                        const pairTag = [c1Tag, c2Tag].sort().join(':::')
-
-                        if (c1.ignoredIds.includes(pairTag) || c2.ignoredIds.includes(pairTag)) {
-                            // Если хоть одна пара игнорируется, мы не показываем их как дубли друг друга
-                            // Но в группе может быть 3 человека, поэтому логика сложнее.
-                            // Для простоты: если клиент i игнорирует любого другого в текущей группе, 
-                            // мы помечаем это соединение как неактивное.
-                        }
-                    }
-
-                    // Упрощенная логика: клиент остается в группе, если он не игнорирует "главного" (первого) в группе
-                    if (i === 0) {
-                        activeClients.push(c1)
-                    } else {
-                        const target = clients[0]
-                        const targetTag = `${target.name}|${target.birthDate || ''}`
-                        const pairTag = [c1Tag, targetTag].sort().join(':::')
-                        if (!c1.ignoredIds.includes(pairTag) && !target.ignoredIds.includes(pairTag)) {
-                            activeClients.push(c1)
-                        }
-                    }
-                }
-
-                if (activeClients.length > 1) {
-                    duplicateGroups.push({ phone, clients: activeClients })
-                }
+        // 2. Группировка по имени (если ФИО полностью совпадает, а карты разные)
+        const nameMap: Record<string, ClientInfo[]> = {}
+        initialData.forEach(client => {
+            const normalized = normalizeName(client.name)
+            if (normalized.length > 3) {
+                if (!nameMap[normalized]) nameMap[normalized] = []
+                nameMap[normalized].push(client)
             }
         })
-        return duplicateGroups
+        Object.values(nameMap).forEach(group => {
+            if (group.length > 1) groups.push(group)
+        })
+
+        // Очистка и фильтрация дублей (убираем повторы и игнорированные)
+        const finalGroups: Array<{ label: string, clients: ClientInfo[] }> = []
+        const seenGroupKeys = new Set<string>()
+
+        groups.forEach(group => {
+            // Сортируем клиентов в группе, чтобы ID-представление группы было стабильным
+            const sortedClients = [...group].sort((a, b) => a.name.localeCompare(b.name))
+            const groupKey = sortedClients.map(c => `${c.name}|${c.birthDate || ''}`).join(':::')
+
+            if (seenGroupKeys.has(groupKey)) return
+            seenGroupKeys.add(groupKey)
+
+            // Фильтруем игнорируемые внутри группы (сравниваем всех с первым)
+            const target = sortedClients[0]
+            const targetTag = `${target.name}|${target.birthDate || ''}`
+
+            const activeClients = sortedClients.filter((c, idx) => {
+                if (idx === 0) return true
+                const cTag = `${c.name}|${c.birthDate || ''}`
+                const pairTag = [cTag, targetTag].sort().join(':::')
+                return !c.ignoredIds.includes(pairTag) && !target.ignoredIds.includes(pairTag)
+            })
+
+            if (activeClients.length > 1) {
+                // Определяем метку для группы (телефон или имя)
+                let label = activeClients[0].name
+                const commonPhone = activeClients[0].phones.find(p =>
+                    activeClients.every(c => c.phones.includes(p))
+                )
+                if (commonPhone) label = `Телефон: ${commonPhone}`
+
+                finalGroups.push({ label, clients: activeClients })
+            }
+        })
+
+        return finalGroups
     }, [initialData])
 
     const startMerge = (source: ClientInfo, target: ClientInfo) => {
-        // Проверяем на конфликты ФИО и Даты рождения
         const hasConflict = source.name !== target.name || source.birthDate !== target.birthDate
 
         if (hasConflict) {
@@ -136,8 +146,11 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
         setMerging(true)
         try {
+            // Собираем все ID записей сурс-пациента
+            const sourceIds = source.records.map(r => r.id).filter((id): id is string => !!id)
+
             await mergePatients(
-                { name: source.name, birthDate: source.birthDate },
+                sourceIds,
                 {
                     name: finalName,
                     birthDate: finalBirth,
@@ -245,7 +258,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         }
     }
 
-    // Рендер истории посещений для выбранного клиента
     if (selectedClient) {
         return (
             <div className="animate-in fade-in slide-in-from-right duration-300">
@@ -259,7 +271,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     Назад к списку
                 </button>
 
-                <div className="bg-white rounded-[24px] p-6 shadow-sm mb-6 border border-gray-100 relative overflow-hidden">
+                <div className="bg-white rounded-[24px] p-6 shadow-sm mb-6 border border-gray-100 relative overflow-hidden text-left">
                     <div className="absolute top-0 right-0 p-4">
                         <div className="text-4xl">{selectedClient.emoji}</div>
                     </div>
@@ -321,7 +333,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     </div>
                 </div>
 
-                <h3 className="text-xl font-bold text-gray-900 mb-4 px-2">История посещений</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-4 px-2 text-left">История посещений</h3>
                 <div className="space-y-4">
                     {selectedClient.records
                         .sort((a, b) => (b['Дата записи'] || '').localeCompare(a['Дата записи'] || ''))
@@ -329,7 +341,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                             <div
                                 key={record.id || index}
                                 onClick={() => router.push(`/patients/${record.id}`)}
-                                className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all active:scale-[0.99] group"
+                                className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all active:scale-[0.99] group text-left"
                             >
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -374,7 +386,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         <div className="space-y-4">
             {/* Модальное окно разрешения конфликтов при объединении */}
             {mergeConflict && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 text-left">
                     <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="p-6 bg-blue-600 text-white">
                             <h4 className="font-bold text-xl mb-1">Разрешение конфликтов</h4>
@@ -382,7 +394,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         </div>
 
                         <div className="p-6 space-y-6">
-                            {/* Выбор имени */}
                             {mergeConflict.source.name !== mergeConflict.target.name && (
                                 <div>
                                     <label className="block text-[10px] text-gray-400 uppercase font-bold mb-3 tracking-widest">Выберите ФИО</label>
@@ -404,7 +415,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                 </div>
                             )}
 
-                            {/* Выбор даты рождения */}
                             {mergeConflict.source.birthDate !== mergeConflict.target.birthDate && (
                                 <div>
                                     <label className="block text-[10px] text-gray-400 uppercase font-bold mb-3 tracking-widest">Выберите Дату Рождения</label>
@@ -428,16 +438,10 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         </div>
 
                         <div className="p-6 bg-gray-50 flex gap-3">
-                            <button
-                                onClick={() => setMergeConflict(null)}
-                                className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all"
-                            >
+                            <button onClick={() => setMergeConflict(null)} className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all">
                                 Отмена
                             </button>
-                            <button
-                                onClick={() => confirmAndMerge(mergeConflict.source, mergeConflict.target, mergeConflict.chosenName, mergeConflict.chosenBirthDate)}
-                                className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all"
-                            >
+                            <button onClick={() => confirmAndMerge(mergeConflict.source, mergeConflict.target, mergeConflict.chosenName, mergeConflict.chosenBirthDate)} className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all">
                                 Подтвердить и объединить
                             </button>
                         </div>
@@ -451,7 +455,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     <div className="bg-white rounded-[28px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="p-6 bg-amber-50 border-b border-amber-100">
                             <h4 className="text-amber-900 font-bold text-lg mb-1">Информация о дубле</h4>
-                            <p className="text-amber-700/70 text-sm">Проверьте данные перед объединением</p>
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
@@ -468,12 +471,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                     {previewClient.birthDate ? new Date(previewClient.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}
                                 </p>
                             </div>
-                            {previewClient.notes && (
-                                <div>
-                                    <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Комментарий</span>
-                                    <p className="text-sm text-gray-600 italic">"{previewClient.notes}"</p>
-                                </div>
-                            )}
                         </div>
                         <div className="p-4 bg-gray-50">
                             <button onClick={() => setPreviewClient(null)} className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform">
@@ -500,7 +497,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
             {/* Блок дублей */}
             {potentialDuplicates.length > 0 && (
-                <div className="bg-amber-50 border border-amber-100 rounded-[20px] p-5 shadow-sm">
+                <div className="bg-amber-50 border border-amber-100 rounded-[20px] p-5 shadow-sm text-left">
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-amber-800 font-bold">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -513,10 +510,10 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         </button>
                     </div>
                     {showDuplicates && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4 text-left">
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4">
                             {potentialDuplicates.map((group, gIdx) => (
                                 <div key={gIdx} className="bg-white rounded-xl p-4 border border-amber-200">
-                                    <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Номер: {group.phone}</p>
+                                    <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">{group.label}</p>
                                     <div className="space-y-3">
                                         {group.clients.map((c, cIdx) => (
                                             <div key={cIdx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg gap-2">
@@ -554,7 +551,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 </div>
             )}
 
-            {/* Тело списка */}
+            {/* Фильтры и список */}
             <button onClick={() => setShowFilters(!showFilters)} className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters ? 'bg-blue-100 text-blue-700 border-2 border-blue-200' : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'}`}>
                 <div className="flex items-center gap-2">
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
@@ -563,7 +560,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 <svg className={`h-5 w-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {showFilters && (
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200 text-left">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Врач</label>
@@ -596,7 +593,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             <div className="space-y-3">
                 {filteredData.length > 0 ? (
                     filteredData.map((client, idx) => (
-                        <div key={idx} onClick={() => setSelectedClient(client)} className="bg-white p-5 rounded-[20px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-between items-center group overflow-hidden relative">
+                        <div key={idx} onClick={() => setSelectedClient(client)} className="bg-white p-5 rounded-[20px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-between items-center group overflow-hidden relative text-left">
                             <div className="flex-1"><div className="flex items-center gap-2 mb-1">{client.emoji && <span className="text-2xl">{client.emoji}</span>}<h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{client.name}</h3></div><p className="text-sm text-gray-500 font-medium ml-1">{client.birthDate ? new Date(client.birthDate).toLocaleDateString('ru-RU') : 'Дата рождения не указана'}</p><div className="flex gap-2 mt-2 ml-1"><span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold text-left">{client.records.length} {client.records.length === 1 ? 'посещение' : client.records.length < 5 ? 'посещения' : 'посещений'}</span></div></div><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </div>
                     ))

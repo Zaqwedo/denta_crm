@@ -28,13 +28,15 @@ export default async function CardIndexPage() {
 
     patients.forEach(p => {
         const name = p.ФИО || 'Без имени'
-        const dob = p['Дата рождения пациента'] || 'нет-др'
-        const key = `${name.trim()}_${dob}`
+        // Нормализуем дату рождения для ключа (null, "" и undefined -> "нет-др")
+        const rawDob = p['Дата рождения пациента']
+        const dobKey = (!rawDob || rawDob === '') ? 'нет-др' : rawDob
+        const key = `${name.trim().toLowerCase()}_${dobKey}`
 
         if (!groupedPatients[key]) {
             groupedPatients[key] = {
                 name: name.trim(),
-                birthDate: p['Дата рождения пациента'] || null,
+                birthDate: (!rawDob || rawDob === '') ? null : rawDob,
                 phones: [],
                 emoji: p.emoji || null,
                 notes: p.notes || null,
