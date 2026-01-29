@@ -83,7 +83,7 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
             </Link>
           </div>
         ) : (
-          <PatientsList 
+          <PatientsList
             patients={patients.map(patient => ({
               id: patient.id || 'без id',
               name: patient.ФИО || 'Без имени',
@@ -93,6 +93,7 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
               doctor: patient.Доктор || null,
               status: patient.Статус || null,
               nurse: patient.Медсестра || null,
+              birthDate: patient['Дата рождения пациента'] || null,
             }))}
           />
         )}

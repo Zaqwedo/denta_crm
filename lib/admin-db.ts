@@ -22,17 +22,17 @@ async function safeEnsureAnonymousSession(): Promise<void> {
 export async function getDoctors(): Promise<string[]> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { data, error } = await supabase
       .from('doctors')
       .select('name')
       .order('name', { ascending: true })
-    
+
     if (error) {
       logger.error('Ошибка получения врачей:', error)
       throw error
     }
-    
+
     return data?.map(d => d.name) || []
   } catch (error) {
     logger.error('Ошибка получения врачей:', error)
@@ -43,11 +43,11 @@ export async function getDoctors(): Promise<string[]> {
 export async function addDoctor(name: string): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { error } = await supabase
       .from('doctors')
       .insert({ name: name.trim() })
-    
+
     if (error) {
       logger.error('Ошибка добавления врача:', error)
       throw error
@@ -61,12 +61,12 @@ export async function addDoctor(name: string): Promise<void> {
 export async function deleteDoctor(name: string): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { error } = await supabase
       .from('doctors')
       .delete()
       .eq('name', name)
-    
+
     if (error) {
       logger.error('Ошибка удаления врача:', error)
       throw error
@@ -82,17 +82,17 @@ export async function deleteDoctor(name: string): Promise<void> {
 export async function getNurses(): Promise<string[]> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { data, error } = await supabase
       .from('nurses')
       .select('name')
       .order('name', { ascending: true })
-    
+
     if (error) {
       logger.error('Ошибка получения медсестер:', error)
       throw error
     }
-    
+
     return data?.map(n => n.name) || []
   } catch (error) {
     logger.error('Ошибка получения медсестер:', error)
@@ -103,11 +103,11 @@ export async function getNurses(): Promise<string[]> {
 export async function addNurse(name: string): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { error } = await supabase
       .from('nurses')
       .insert({ name: name.trim() })
-    
+
     if (error) {
       logger.error('Ошибка добавления медсестры:', error)
       throw error
@@ -121,12 +121,12 @@ export async function addNurse(name: string): Promise<void> {
 export async function deleteNurse(name: string): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { error } = await supabase
       .from('nurses')
       .delete()
       .eq('name', name)
-    
+
     if (error) {
       logger.error('Ошибка удаления медсестры:', error)
       throw error
@@ -145,37 +145,39 @@ export interface WhitelistEmail {
   provider: 'google' | 'yandex' | 'email'
   created_at: string
   doctors?: string[] // Врачи, которых может видеть этот email
+  nurses?: string[] // Медсестры, которых может видеть этот email
 }
 
 export async function getWhitelistEmails(provider?: 'google' | 'yandex' | 'email'): Promise<WhitelistEmail[]> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     let query = supabase
       .from('whitelist_emails')
       .select('*')
       .order('email', { ascending: true })
-    
+
     if (provider) {
       query = query.eq('provider', provider)
     }
-    
+
     const { data, error } = await query
-    
+
     if (error) {
       logger.error('Ошибка получения белых списков:', error)
       throw error
     }
-    
-    // Загружаем врачей для каждого email
-    const emailsWithDoctors = await Promise.all(
+
+    // Загружаем врачей и медсестер для каждого email
+    const emailsWithData = await Promise.all(
       (data || []).map(async (email) => {
         const doctors = await getDoctorsForEmail(email.id)
-        return { ...email, doctors }
+        const nurses = await getNursesForEmail(email.id)
+        return { ...email, doctors, nurses }
       })
     )
-    
-    return emailsWithDoctors
+
+    return emailsWithData
   } catch (error) {
     logger.error('Ошибка получения белых списков:', error)
     return []
@@ -186,16 +188,16 @@ export async function getWhitelistEmails(provider?: 'google' | 'yandex' | 'email
 export async function getDoctorsForEmail(whitelistEmailId: number): Promise<string[]> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     logger.info('getDoctorsForEmail: начало', {
       whitelistEmailId
     })
-    
+
     const { data, error } = await supabase
       .from('whitelist_email_doctors')
       .select('doctor_name, id')
       .eq('whitelist_email_id', whitelistEmailId)
-    
+
     if (error) {
       logger.error('getDoctorsForEmail: ошибка при получении врачей', {
         whitelistEmailId,
@@ -203,19 +205,44 @@ export async function getDoctorsForEmail(whitelistEmailId: number): Promise<stri
       })
       return []
     }
-    
+
     const doctors = data?.map(d => d.doctor_name) || []
-    
+
     logger.info('getDoctorsForEmail: врачи получены', {
       whitelistEmailId,
       doctors,
       doctorsCount: doctors.length,
       rawData: data
     })
-    
+
     return doctors
   } catch (error) {
     logger.error('Ошибка получения врачей для email:', error)
+    return []
+  }
+}
+
+// Получить медсестер для конкретного email
+export async function getNursesForEmail(whitelistEmailId: number): Promise<string[]> {
+  try {
+    await safeEnsureAnonymousSession()
+
+    const { data, error } = await supabase
+      .from('whitelist_email_nurses')
+      .select('nurse_name')
+      .eq('whitelist_email_id', whitelistEmailId)
+
+    if (error) {
+      logger.error('getNursesForEmail: ошибка при получении медсестер', {
+        whitelistEmailId,
+        error
+      })
+      return []
+    }
+
+    return data?.map(n => n.nurse_name) || []
+  } catch (error) {
+    logger.error('Ошибка получения медсестер для email:', error)
     return []
   }
 }
@@ -224,19 +251,18 @@ export async function getDoctorsForEmail(whitelistEmailId: number): Promise<stri
 export async function getDoctorsForEmailByEmail(email: string): Promise<string[]> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const normalizedEmail = email.toLowerCase().trim()
-    
+
     logger.info('getDoctorsForEmailByEmail: начало', { email: normalizedEmail })
-    
+
     // Сначала находим ID email в whitelist_emails
-    // Используем maybeSingle() чтобы не выбрасывать ошибку если не найдено
     const { data: emailData, error: emailError } = await supabase
       .from('whitelist_emails')
       .select('id, email, provider')
       .eq('email', normalizedEmail)
       .maybeSingle()
-    
+
     if (emailError) {
       logger.error('getDoctorsForEmailByEmail: ошибка при поиске email', {
         email: normalizedEmail,
@@ -244,58 +270,66 @@ export async function getDoctorsForEmailByEmail(email: string): Promise<string[]
       })
       return []
     }
-    
+
     if (!emailData) {
       logger.info('getDoctorsForEmailByEmail: email не найден в whitelist', {
         email: normalizedEmail
       })
       return []
     }
-    
-    logger.info('getDoctorsForEmailByEmail: email найден', {
-      email: normalizedEmail,
-      whitelistId: emailData.id,
-      provider: emailData.provider
-    })
-    
-    const doctors = await getDoctorsForEmail(emailData.id)
-    
-    logger.info('getDoctorsForEmailByEmail: врачи получены', {
-      email: normalizedEmail,
-      doctors,
-      doctorsCount: doctors.length
-    })
-    
-    return doctors
+
+    return await getDoctorsForEmail(emailData.id)
   } catch (error) {
     logger.error('Ошибка получения врачей для email:', error)
     return []
   }
 }
 
+// Получить медсестер для email по самому email
+export async function getNursesForEmailByEmail(email: string): Promise<string[]> {
+  try {
+    await safeEnsureAnonymousSession()
+    const normalizedEmail = email.toLowerCase().trim()
+
+    const { data: emailData, error: emailError } = await supabase
+      .from('whitelist_emails')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (emailError || !emailData) return []
+
+    return await getNursesForEmail(emailData.id)
+  } catch (error) {
+    logger.error('Ошибка получения медсестер для email:', error)
+    return []
+  }
+}
+
 export async function addWhitelistEmail(
-  email: string, 
+  email: string,
   provider: 'google' | 'yandex' | 'email',
-  doctorNames?: string[]
+  doctorNames?: string[] | null,
+  nurseNames?: string[] | null
 ): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     // Добавляем email
     const { data: emailData, error: emailError } = await supabase
       .from('whitelist_emails')
-      .insert({ 
+      .insert({
         email: email.trim().toLowerCase(),
-        provider 
+        provider
       })
       .select()
       .single()
-    
+
     if (emailError) {
       logger.error('Ошибка добавления email в белый список:', emailError)
       throw emailError
     }
-    
+
     // Если указаны врачи, добавляем связи
     if (doctorNames && doctorNames.length > 0 && emailData) {
       const doctorLinks = doctorNames
@@ -304,19 +338,19 @@ export async function addWhitelistEmail(
           whitelist_email_id: emailData.id,
           doctor_name: doctorName.trim()
         }))
-      
+
       logger.info('addWhitelistEmail: добавляем связи с врачами', {
         email: email.trim().toLowerCase(),
         whitelistId: emailData.id,
         doctorLinks,
         linksCount: doctorLinks.length
       })
-      
+
       const { data: insertedData, error: doctorsError } = await supabase
         .from('whitelist_email_doctors')
         .insert(doctorLinks)
         .select()
-      
+
       if (doctorsError) {
         logger.error('addWhitelistEmail: ошибка добавления врачей', {
           email: email.trim().toLowerCase(),
@@ -325,10 +359,26 @@ export async function addWhitelistEmail(
           doctorLinks
         })
         // Не пробрасываем ошибку, так как email уже добавлен
-      } else {
-        logger.info('addWhitelistEmail: связи с врачами добавлены', {
+      }
+    }
+
+    // Если указаны медсестры, добавляем связи
+    if (nurseNames && nurseNames.length > 0 && emailData) {
+      const nurseLinks = nurseNames
+        .filter(n => n && typeof n === 'string' && n.trim())
+        .map(nurseName => ({
+          whitelist_email_id: emailData.id,
+          nurse_name: nurseName.trim()
+        }))
+
+      const { error: nursesError } = await supabase
+        .from('whitelist_email_nurses')
+        .insert(nurseLinks)
+
+      if (nursesError) {
+        logger.error('addWhitelistEmail: ошибка добавления медсестер', {
           email: email.trim().toLowerCase(),
-          insertedCount: insertedData?.length || 0
+          error: nursesError
         })
       }
     }
@@ -344,22 +394,22 @@ export async function updateWhitelistEmailDoctors(
 ): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const normalizedEmail = email.toLowerCase().trim()
-    
+
     logger.info('updateWhitelistEmailDoctors: начало', {
       email: normalizedEmail,
       doctorNames,
       doctorsCount: doctorNames.length
     })
-    
+
     // Находим ID email (используем maybeSingle для безопасности)
     const { data: emailData, error: emailError } = await supabase
       .from('whitelist_emails')
       .select('id, email')
       .eq('email', normalizedEmail)
       .maybeSingle()
-    
+
     if (emailError) {
       logger.error('updateWhitelistEmailDoctors: ошибка при поиске email', {
         email: normalizedEmail,
@@ -367,25 +417,25 @@ export async function updateWhitelistEmailDoctors(
       })
       throw emailError
     }
-    
+
     if (!emailData) {
       logger.error('updateWhitelistEmailDoctors: email не найден', {
         email: normalizedEmail
       })
       throw new Error('Email not found')
     }
-    
+
     logger.info('updateWhitelistEmailDoctors: email найден', {
       email: normalizedEmail,
       whitelistId: emailData.id
     })
-    
+
     // Удаляем все существующие связи
     const { error: deleteError, count: deleteCount } = await supabase
       .from('whitelist_email_doctors')
       .delete()
       .eq('whitelist_email_id', emailData.id)
-    
+
     if (deleteError) {
       logger.error('updateWhitelistEmailDoctors: ошибка удаления старых связей', {
         email: normalizedEmail,
@@ -394,12 +444,12 @@ export async function updateWhitelistEmailDoctors(
       })
       throw deleteError
     }
-    
+
     logger.info('updateWhitelistEmailDoctors: старые связи удалены', {
       email: normalizedEmail,
       deletedCount: deleteCount
     })
-    
+
     // Добавляем новые связи
     if (doctorNames.length > 0) {
       const doctorLinks = doctorNames
@@ -408,19 +458,19 @@ export async function updateWhitelistEmailDoctors(
           whitelist_email_id: emailData.id,
           doctor_name: doctorName.trim()
         }))
-      
+
       logger.info('updateWhitelistEmailDoctors: добавляем новые связи', {
         email: normalizedEmail,
         whitelistId: emailData.id,
         doctorLinks,
         linksCount: doctorLinks.length
       })
-      
+
       const { data: insertedData, error: insertError } = await supabase
         .from('whitelist_email_doctors')
         .insert(doctorLinks)
         .select()
-      
+
       if (insertError) {
         logger.error('updateWhitelistEmailDoctors: ошибка добавления новых связей', {
           email: normalizedEmail,
@@ -430,7 +480,7 @@ export async function updateWhitelistEmailDoctors(
         })
         throw insertError
       }
-      
+
       logger.info('updateWhitelistEmailDoctors: новые связи добавлены', {
         email: normalizedEmail,
         insertedCount: insertedData?.length || 0
@@ -446,23 +496,113 @@ export async function updateWhitelistEmailDoctors(
   }
 }
 
+export async function updateWhitelistEmailNurses(
+  email: string,
+  nurseNames: string[]
+): Promise<void> {
+  try {
+    await safeEnsureAnonymousSession()
+    const normalizedEmail = email.toLowerCase().trim()
+
+    logger.info('updateWhitelistEmailNurses: начало', {
+      email: normalizedEmail,
+      nurseNames,
+      nursesCount: nurseNames.length
+    })
+
+    const { data: emailData, error: emailError } = await supabase
+      .from('whitelist_emails')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (emailError) {
+      logger.error('updateWhitelistEmailNurses: ошибка при поиске email', {
+        email: normalizedEmail,
+        error: emailError
+      })
+      throw emailError
+    }
+
+    if (!emailData) {
+      logger.error('updateWhitelistEmailNurses: email не найден', {
+        email: normalizedEmail
+      })
+      throw new Error('Email not found')
+    }
+
+    // Удаляем старые
+    const { error: deleteError } = await supabase
+      .from('whitelist_email_nurses')
+      .delete()
+      .eq('whitelist_email_id', emailData.id)
+
+    if (deleteError) {
+      logger.error('updateWhitelistEmailNurses: ошибка удаления старых связей', {
+        email: normalizedEmail,
+        whitelistId: emailData.id,
+        error: deleteError
+      })
+      // If table doesn't exist, we'll see it here
+      throw deleteError
+    }
+
+    // Добавляем новые
+    if (nurseNames.length > 0) {
+      const nurseLinks = nurseNames
+        .filter(n => n && typeof n === 'string' && n.trim())
+        .map(nurseName => ({
+          whitelist_email_id: emailData.id,
+          nurse_name: nurseName.trim()
+        }))
+
+      const { data: insertedData, error: insertError } = await supabase
+        .from('whitelist_email_nurses')
+        .insert(nurseLinks)
+        .select()
+
+      if (insertError) {
+        logger.error('updateWhitelistEmailNurses: ошибка добавления новых связей', {
+          email: normalizedEmail,
+          whitelistId: emailData.id,
+          error: insertError,
+          nurseLinks
+        })
+        throw insertError
+      }
+
+      logger.info('updateWhitelistEmailNurses: новые связи добавлены', {
+        email: normalizedEmail,
+        insertedCount: insertedData?.length || 0
+      })
+    } else {
+      logger.info('updateWhitelistEmailNurses: нет медсестер для добавления', {
+        email: normalizedEmail
+      })
+    }
+  } catch (error) {
+    logger.error('Ошибка обновления медсестер для email:', error)
+    throw error
+  }
+}
+
 export async function deleteWhitelistEmail(email: string): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     // Сначала находим ID для удаления связей
     const { data: emailData } = await supabase
       .from('whitelist_emails')
       .select('id')
       .eq('email', email.toLowerCase())
       .single()
-    
+
     // Удаляем email (связи удалятся автоматически через CASCADE)
     const { error } = await supabase
       .from('whitelist_emails')
       .delete()
       .eq('email', email.toLowerCase())
-    
+
     if (error) {
       logger.error('Ошибка удаления email из белого списка:', error)
       throw error
@@ -489,17 +629,17 @@ export interface RegisteredUser {
 export async function getRegisteredUsers(): Promise<RegisteredUser[]> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     const { data, error } = await supabase
       .from('users')
       .select('id, email, first_name, last_name, created_at, updated_at, password_hash')
       .order('created_at', { ascending: false })
-    
+
     if (error) {
       logger.error('Ошибка получения зарегистрированных пользователей:', error)
       throw error
     }
-    
+
     // Добавляем статус пароля
     // Пустая строка также считается как "сброшен" (временное решение до выполнения SQL скрипта)
     return (data || []).map(user => ({
@@ -515,19 +655,19 @@ export async function getRegisteredUsers(): Promise<RegisteredUser[]> {
 export async function deleteUser(email: string): Promise<void> {
   try {
     const normalizedEmail = email.toLowerCase().trim()
-    
+
     logger.info('Сброс пароля: начало', { email: normalizedEmail })
-    
+
     // Используем админский клиент для обхода RLS
     const adminSupabase = getSupabaseAdmin()
-    
+
     // Проверяем, существует ли пользователь
     const { data: existingUser, error: checkError } = await adminSupabase
       .from('users')
       .select('id, password_hash')
       .eq('email', normalizedEmail)
       .maybeSingle()
-    
+
     if (checkError) {
       logger.error('Сброс пароля: ошибка при проверке пользователя', {
         email: normalizedEmail,
@@ -535,18 +675,18 @@ export async function deleteUser(email: string): Promise<void> {
       })
       throw checkError
     }
-    
+
     if (!existingUser) {
       logger.error('Сброс пароля: пользователь не найден', { email: normalizedEmail })
       throw new Error('Пользователь не найден')
     }
-    
+
     logger.info('Сброс пароля: пользователь найден', {
       email: normalizedEmail,
       userId: existingUser.id,
       hasPassword: !!existingUser.password_hash
     })
-    
+
     // Вместо удаления, устанавливаем password_hash в NULL (сброс пароля)
     // Используем админский клиент для обхода RLS
     // Сначала пробуем установить NULL
@@ -555,18 +695,18 @@ export async function deleteUser(email: string): Promise<void> {
       .update({ password_hash: null })
       .eq('email', normalizedEmail)
       .select()
-    
+
     // Если ошибка связана с NOT NULL constraint, пробуем установить пустую строку как временное решение
     if (updateError && updateError.code === '23502' && updateError.message?.includes('password_hash')) {
       logger.warn('Сброс пароля: колонка password_hash имеет NOT NULL. Используем временное решение (пустая строка). Выполните SQL скрипт supabase-fix-password-hash-nullable.sql в Supabase.')
-      
+
       // Пробуем установить пустую строку вместо NULL (временное решение)
       const tempResult = await adminSupabase
         .from('users')
         .update({ password_hash: '' })
         .eq('email', normalizedEmail)
         .select()
-      
+
       if (tempResult.error) {
         logger.error('Сброс пароля: ошибка при обновлении (временное решение)', {
           email: normalizedEmail,
@@ -575,7 +715,7 @@ export async function deleteUser(email: string): Promise<void> {
         })
         throw new Error('Колонка password_hash не может быть NULL. Выполните SQL скрипт supabase-fix-password-hash-nullable.sql в Supabase для исправления.')
       }
-      
+
       updatedUser = tempResult.data
       updateError = null
     } else if (updateError) {
@@ -590,20 +730,20 @@ export async function deleteUser(email: string): Promise<void> {
       })
       throw updateError
     }
-    
+
     if (!updatedUser || updatedUser.length === 0) {
       logger.error('Сброс пароля: не удалось обновить пользователя', {
         email: normalizedEmail,
         userId: existingUser.id
       })
-      
+
       // Пробуем обновить по ID
       let { data: retryUpdate, error: retryError } = await adminSupabase
         .from('users')
         .update({ password_hash: null })
         .eq('id', existingUser.id)
         .select()
-      
+
       // Если ошибка связана с NOT NULL constraint, пробуем пустую строку
       if (retryError && retryError.code === '23502' && retryError.message?.includes('password_hash')) {
         logger.warn('Сброс пароля: колонка password_hash имеет NOT NULL. Используем временное решение (пустая строка) при обновлении по ID.')
@@ -612,7 +752,7 @@ export async function deleteUser(email: string): Promise<void> {
           .update({ password_hash: '' })
           .eq('id', existingUser.id)
           .select()
-        
+
         if (tempRetry.error) {
           logger.error('Сброс пароля: не удалось обновить даже по ID (временное решение)', {
             userId: existingUser.id,
@@ -620,11 +760,11 @@ export async function deleteUser(email: string): Promise<void> {
           })
           throw new Error('Колонка password_hash не может быть NULL. Выполните SQL скрипт supabase-fix-password-hash-nullable.sql в Supabase для исправления.')
         }
-        
+
         retryUpdate = tempRetry.data
         retryError = null
       }
-      
+
       if (retryError || !retryUpdate || retryUpdate.length === 0) {
         logger.error('Сброс пароля: не удалось обновить даже по ID', {
           userId: existingUser.id,
@@ -632,14 +772,14 @@ export async function deleteUser(email: string): Promise<void> {
         })
         throw new Error('Не удалось обновить пароль пользователя. Проверьте настройки Supabase.')
       }
-      
+
       logger.info('Сброс пароля: успешно обновлено по ID', {
         email: normalizedEmail,
         userId: existingUser.id
       })
       return
     }
-    
+
     logger.info('Пароль успешно сброшен', {
       email: normalizedEmail,
       userId: existingUser.id,
@@ -654,25 +794,25 @@ export async function deleteUser(email: string): Promise<void> {
 export async function resetUserPassword(email: string): Promise<void> {
   try {
     await safeEnsureAnonymousSession()
-    
+
     // Проверяем, существует ли пользователь
     const { data: user, error: checkError } = await supabase
       .from('users')
       .select('id')
       .eq('email', email.toLowerCase().trim())
       .single()
-    
+
     if (checkError || !user) {
       logger.error('Пользователь не найден для сброса пароля:', checkError)
       throw new Error('Пользователь не найден')
     }
-    
+
     // Удаляем пользователя - он сможет зарегистрироваться заново
     const { error } = await supabase
       .from('users')
       .delete()
       .eq('email', email.toLowerCase().trim())
-    
+
     if (error) {
       logger.error('Ошибка сброса пароля (удаления пользователя):', error)
       throw error

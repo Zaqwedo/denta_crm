@@ -9,6 +9,7 @@ interface WhitelistEmail {
   provider: 'google' | 'yandex' | 'email'
   created_at: string
   doctors?: string[]
+  nurses?: string[]
 }
 
 interface RegisteredUser {
@@ -39,6 +40,7 @@ export default function AdminDashboard() {
   const [newEmail, setNewEmail] = useState('')
   const [newEmailProvider, setNewEmailProvider] = useState<'google' | 'yandex' | 'email'>('google')
   const [selectedDoctors, setSelectedDoctors] = useState<string[]>([])
+  const [selectedNurses, setSelectedNurses] = useState<string[]>([])
   const [editingEmail, setEditingEmail] = useState<WhitelistEmail | null>(null)
 
   // Сообщения об ошибках
@@ -51,13 +53,13 @@ export default function AdminDashboard() {
       try {
         // Проверяем авторизацию через специальный API endpoint для проверки админских прав
         const authCheckRes = await fetch('/api/admin/check-auth', { cache: 'no-store' })
-        
+
         // Если не авторизован как админ (401 или 403), перенаправляем на страницу входа
         if (authCheckRes.status === 401 || authCheckRes.status === 403) {
           router.push('/admin')
           return
         }
-        
+
         // Проверяем, что ответ успешный и содержит isAdmin: true
         const authData = await authCheckRes.json()
         if (!authData.isAdmin) {
@@ -104,10 +106,12 @@ export default function AdminDashboard() {
         console.log('loadData: загружены whitelist emails', {
           emails: whitelistData.emails,
           count: whitelistData.emails?.length || 0,
-          emailsWithDoctors: whitelistData.emails?.map((e: any) => ({
+          emailsWithData: whitelistData.emails?.map((e: any) => ({
             email: e.email,
             doctors: e.doctors,
-            doctorsCount: e.doctors?.length || 0
+            nurses: e.nurses,
+            doctorsCount: e.doctors?.length || 0,
+            nursesCount: e.nurses?.length || 0
           }))
         })
         setWhitelistEmails(whitelistData.emails || [])
@@ -239,17 +243,17 @@ export default function AdminDashboard() {
     }
 
     const domain = email.toLowerCase().split('@')[1]
-    
+
     // Google домены
     if (domain === 'gmail.com' || domain === 'googlemail.com') {
       return 'google'
     }
-    
+
     // Yandex домены
     if (domain === 'yandex.ru' || domain === 'yandex.com' || domain === 'ya.ru') {
       return 'yandex'
     }
-    
+
     // Для остальных доменов используем 'email'
     return 'email'
   }
@@ -257,7 +261,7 @@ export default function AdminDashboard() {
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const email = e.target.value
     setNewEmail(email)
-    
+
     // Автоматически определяем провайдера по домену
     if (email && email.includes('@')) {
       const detectedProvider = detectProviderFromEmail(email)
@@ -274,10 +278,11 @@ export default function AdminDashboard() {
       const response = await fetch('/api/admin/whitelist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: newEmail, 
+        body: JSON.stringify({
+          email: newEmail,
           provider: newEmailProvider,
-          doctors: selectedDoctors
+          doctors: selectedDoctors,
+          nurses: selectedNurses
         }),
       })
 
@@ -291,6 +296,7 @@ export default function AdminDashboard() {
       setSuccess('Email успешно добавлен в белый список')
       setNewEmail('')
       setSelectedDoctors([])
+      setSelectedNurses([])
       await loadData()
     } catch (err) {
       setError('Ошибка при добавлении email')
@@ -298,51 +304,45 @@ export default function AdminDashboard() {
     }
   }
 
-  const handleUpdateEmailDoctors = async (email: string, doctors: string[]) => {
+  const handleUpdateEmailRelations = async (email: string, doctors: string[], nurses: string[]) => {
     setError(null)
     setSuccess(null)
 
     try {
-      console.log('handleUpdateEmailDoctors: отправка данных', {
-        email,
-        doctors,
-        doctorsCount: doctors.length,
-        doctorsArray: doctors
-      })
-
       const response = await fetch('/api/admin/whitelist', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, doctors }),
-      })
-
-      const data = await response.json()
-
-      console.log('handleUpdateEmailDoctors: ответ сервера', {
-        ok: response.ok,
-        status: response.status,
-        data
+        body: JSON.stringify({ email, doctors, nurses }),
       })
 
       if (!response.ok) {
-        setError(data.error || 'Ошибка обновления врачей')
+        const data = await response.json()
+        setError(data.error || 'Ошибка обновления привязок')
         return
       }
 
-      setSuccess('Врачи успешно обновлены')
+      setSuccess('Привязки успешно обновлены')
       setEditingEmail(null)
       await loadData()
     } catch (err) {
-      setError('Ошибка при обновлении врачей')
-      console.error('Update email doctors error:', err)
+      setError('Ошибка при обновлении привязок')
+      console.error('Update email relations error:', err)
     }
   }
 
   const toggleDoctor = (doctorName: string) => {
-    setSelectedDoctors(prev => 
+    setSelectedDoctors(prev =>
       prev.includes(doctorName)
         ? prev.filter(d => d !== doctorName)
         : [...prev, doctorName]
+    )
+  }
+
+  const toggleNurse = (nurseName: string) => {
+    setSelectedNurses(prev =>
+      prev.includes(nurseName)
+        ? prev.filter(n => n !== nurseName)
+        : [...prev, nurseName]
     )
   }
 
@@ -428,7 +428,7 @@ export default function AdminDashboard() {
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
+              <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
             Назад к списку пациентов
           </button>
@@ -454,7 +454,7 @@ export default function AdminDashboard() {
           {/* Врачи */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Врачи</h2>
-            
+
             <form onSubmit={handleAddDoctor} className="mb-4">
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
@@ -499,7 +499,7 @@ export default function AdminDashboard() {
           {/* Медсестры */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Медсестры</h2>
-            
+
             <form onSubmit={handleAddNurse} className="mb-4">
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
@@ -544,7 +544,7 @@ export default function AdminDashboard() {
           {/* Белые списки */}
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:col-span-2">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Белые списки email</h2>
-            
+
             <form onSubmit={handleAddEmail} className="mb-4 space-y-3">
               <div className="flex flex-col sm:flex-row gap-2">
                 <input
@@ -571,32 +571,61 @@ export default function AdminDashboard() {
                   Добавить
                 </button>
               </div>
-              
-              {/* Выбор врачей */}
-              {doctors.length > 0 && (
-                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Врачи, которых может видеть этот email (необязательно):
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {doctors.map((doctor) => (
-                      <label
-                        key={doctor}
-                        className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedDoctors.includes(doctor)}
-                          onChange={() => toggleDoctor(doctor)}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-700">{doctor}</span>
+
+              {/* Выбор врачей и медсестер */}
+              {(doctors.length > 0 || nurses.length > 0) && (
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-4">
+                  {doctors.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Врачи, которых может видеть этот email:
                       </label>
-                    ))}
-                  </div>
-                  {selectedDoctors.length === 0 && (
-                    <p className="text-xs text-red-600 font-medium mt-2">
-                      ⚠️ Если не выбрано ни одного врача, email не будет видеть пациентов
+                      <div className="flex flex-wrap gap-2">
+                        {doctors.map((doctor) => (
+                          <label
+                            key={doctor}
+                            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedDoctors.includes(doctor)}
+                              onChange={() => toggleDoctor(doctor)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">{doctor}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {nurses.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Медсестры, которых может видеть этот email:
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {nurses.map((nurse) => (
+                          <label
+                            key={nurse}
+                            className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedNurses.includes(nurse)}
+                              onChange={() => toggleNurse(nurse)}
+                              className="w-4 h-4 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
+                            />
+                            <span className="text-sm text-gray-700">{nurse}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedDoctors.length === 0 && selectedNurses.length === 0 && (
+                    <p className="text-xs text-red-600 font-medium pt-2 border-t border-gray-200">
+                      ⚠️ Если не выбрано ни одного врача или медсестры, email не будет видеть пациентов
                     </p>
                   )}
                 </div>
@@ -618,24 +647,42 @@ export default function AdminDashboard() {
                         {item.provider}
                       </span>
                     </div>
-                    
-                    {/* Отображение врачей */}
-                    {item.doctors && item.doctors.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        <span className="text-xs text-gray-600">Врачи:</span>
-                        {item.doctors.map((doctor) => (
-                          <span
-                            key={doctor}
-                            className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-lg"
-                          >
-                            {doctor}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-red-600 font-medium">❌ Пациентов не видит</p>
-                    )}
-                    
+
+                    {/* Отображение врачей и медсестер */}
+                    <div className="space-y-1">
+                      {item.doctors && item.doctors.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Врачи:</span>
+                          {item.doctors.map((doctor) => (
+                            <span
+                              key={doctor}
+                              className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-md border border-blue-100"
+                            >
+                              {doctor}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {item.nurses && item.nurses.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <span className="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Медсестры:</span>
+                          {item.nurses.map((nurse) => (
+                            <span
+                              key={nurse}
+                              className="px-2 py-0.5 bg-pink-50 text-pink-700 text-xs rounded-md border border-pink-100"
+                            >
+                              {nurse}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {(!item.doctors || item.doctors.length === 0) && (!item.nurses || item.nurses.length === 0) && (
+                        <p className="text-xs text-red-600 font-medium">❌ Пациентов не видит</p>
+                      )}
+                    </div>
+
                     {/* Кнопки внизу карточки */}
                     <div className="flex gap-2 pt-2 border-t border-gray-200">
                       <button
@@ -643,16 +690,17 @@ export default function AdminDashboard() {
                           if (editingEmail?.id === item.id) {
                             setEditingEmail(null)
                           } else {
-                            // Создаем копию объекта с текущими врачами для редактирования
+                            // Создаем копию объекта с текущими врачами и медсестрами для редактирования
                             setEditingEmail({
                               ...item,
-                              doctors: item.doctors ? [...item.doctors] : []
+                              doctors: item.doctors ? [...item.doctors] : [],
+                              nurses: item.nurses ? [...item.nurses] : []
                             })
                           }
                         }}
                         className="flex-1 px-2 py-1.5 bg-gray-600 hover:bg-gray-700 text-white text-xs rounded-lg transition-all"
                       >
-                        {editingEmail?.id === item.id ? 'Отмена' : 'Изменить врачей'}
+                        {editingEmail?.id === item.id ? 'Отмена' : 'Изменить доступ'}
                       </button>
                       <button
                         onClick={() => handleDeleteEmail(item.email)}
@@ -661,38 +709,70 @@ export default function AdminDashboard() {
                         Удалить
                       </button>
                     </div>
-                    
-                    {/* Форма редактирования врачей */}
+
+                    {/* Форма редактирования доступа */}
                     {editingEmail?.id === item.id && (
                       <div className="mt-3 pt-3 border-t border-gray-200">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Выберите врачей:
-                        </label>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {doctors.map((doctor) => (
-                            <label
-                              key={doctor}
-                              className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={editingEmail.doctors?.includes(doctor) || false}
-                                onChange={() => {
-                                  const currentDoctors = editingEmail.doctors || []
-                                  const newDoctors = currentDoctors.includes(doctor)
-                                    ? currentDoctors.filter(d => d !== doctor)
-                                    : [...currentDoctors, doctor]
-                                  setEditingEmail({ ...editingEmail, doctors: newDoctors })
-                                }}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                              />
-                              <span className="text-sm text-gray-700">{doctor}</span>
-                            </label>
-                          ))}
+                        <div className="space-y-4 mb-4">
+                          {doctors.length > 0 && (
+                            <div>
+                              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Врачи:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {doctors.map((doctor) => (
+                                  <label
+                                    key={doctor}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={editingEmail.doctors?.includes(doctor) || false}
+                                      onChange={() => {
+                                        const currentDoctors = editingEmail.doctors || []
+                                        const newDoctors = currentDoctors.includes(doctor)
+                                          ? currentDoctors.filter(d => d !== doctor)
+                                          : [...currentDoctors, doctor]
+                                        setEditingEmail({ ...editingEmail, doctors: newDoctors })
+                                      }}
+                                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-700">{doctor}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {nurses.length > 0 && (
+                            <div>
+                              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Медсестры:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {nurses.map((nurse) => (
+                                  <label
+                                    key={nurse}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={editingEmail.nurses?.includes(nurse) || false}
+                                      onChange={() => {
+                                        const currentNurses = editingEmail.nurses || []
+                                        const newNurses = currentNurses.includes(nurse)
+                                          ? currentNurses.filter(n => n !== nurse)
+                                          : [...currentNurses, nurse]
+                                        setEditingEmail({ ...editingEmail, nurses: newNurses })
+                                      }}
+                                      className="w-4 h-4 text-pink-600 border-gray-300 rounded focus:ring-pink-500"
+                                    />
+                                    <span className="text-sm text-gray-700">{nurse}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="flex gap-2">
                           <button
-                            onClick={() => handleUpdateEmailDoctors(item.email, editingEmail.doctors || [])}
+                            onClick={() => handleUpdateEmailRelations(item.email, editingEmail.doctors || [], editingEmail.nurses || [])}
                             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-all"
                           >
                             Сохранить
@@ -715,7 +795,7 @@ export default function AdminDashboard() {
           {/* Зарегистрированные пользователи */}
           <div className="bg-white rounded-2xl shadow-lg p-6 lg:col-span-2">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Зарегистрированные пользователи</h2>
-            
+
             <div className="space-y-2">
               {registeredUsers.length === 0 ? (
                 <p className="text-gray-500 text-sm">Нет зарегистрированных пользователей</p>
@@ -741,11 +821,10 @@ export default function AdminDashboard() {
                             <td className="py-3 px-4 text-sm text-gray-600">{user.first_name || '-'}</td>
                             <td className="py-3 px-4 text-sm text-gray-600">{user.last_name || '-'}</td>
                             <td className="py-3 px-4 text-sm">
-                              <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
-                                isPasswordSet 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-gray-100 text-gray-600'
-                              }`}>
+                              <span className={`px-2 py-1 rounded-lg text-xs font-medium ${isPasswordSet
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-600'
+                                }`}>
                                 {user.password_status}
                               </span>
                             </td>
@@ -762,11 +841,10 @@ export default function AdminDashboard() {
                               <button
                                 onClick={() => isPasswordSet && handleResetPassword(user.email)}
                                 disabled={!isPasswordSet}
-                                className={`px-3 py-1 text-sm rounded-lg transition-all ${
-                                  isPasswordSet
-                                    ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
-                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                }`}
+                                className={`px-3 py-1 text-sm rounded-lg transition-all ${isPasswordSet
+                                  ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer'
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                  }`}
                               >
                                 Сброс пароля
                               </button>

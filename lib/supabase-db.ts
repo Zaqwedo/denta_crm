@@ -2,7 +2,7 @@
 
 import { supabase, ensureAnonymousSession } from '../lib/supabase'
 import { logger } from './logger'
-import { getDoctorsForEmailByEmail } from './admin-db'
+import { getDoctorsForEmailByEmail, getNursesForEmailByEmail } from './admin-db'
 import { cookies } from 'next/headers'
 import { checkAdminAuth } from './auth-check'
 
@@ -47,21 +47,21 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     // Проверяем, является ли пользователь админом
     // Админ всегда видит всех пациентов без фильтрации
     const isAdmin = await checkAdminAuth()
-    
+
     logger.info('getPatients: начало', {
       isAdmin,
       userEmail,
       timestamp: new Date().toISOString(),
       warning: isAdmin ? 'Пользователь определяется как АДМИН - фильтрация НЕ применяется!' : 'Пользователь НЕ админ - фильтрация будет применена'
     })
-    
+
     let query = supabase.from('patients').select('*')
     let email: string | undefined = userEmail // Объявляем email вне блока для использования в логах
-    
+
     // Если пользователь не админ, применяем фильтрацию по врачам
     if (!isAdmin) {
       // Если email не передан, пытаемся получить из cookie
@@ -82,70 +82,48 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
       } else {
         logger.info('getPatients: email передан как параметр', { email })
       }
-      
+
       // Если есть email пользователя, проверяем ограничения по врачам
       if (email) {
         const normalizedEmail = email.toLowerCase().trim()
         logger.info('getPatients: проверка ограничений по врачам', {
           email: normalizedEmail
         })
-        
+
         const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
-        
-        logger.info('getPatients: получены разрешенные врачи', {
+        const allowedNurses = await getNursesForEmailByEmail(normalizedEmail)
+
+        logger.info('getPatients: получены ограничения', {
           email: normalizedEmail,
           allowedDoctors,
-          doctorsCount: allowedDoctors.length
+          allowedNurses,
         })
-        
-        // НОВАЯ ЛОГИКА: Если врачи указаны - показываем только их пациентов
-        // Если врачи НЕ указаны - НЕ показываем никаких пациентов
-        if (allowedDoctors.length > 0) {
-          logger.info('getPatients: применяем фильтр по врачам', {
-            email: normalizedEmail,
-            allowedDoctors,
-            allowedDoctorsCount: allowedDoctors.length,
-            allowedDoctorsDetails: allowedDoctors.map(d => ({
-              name: d,
-              length: d.length,
-              trimmed: d.trim(),
-              lowercased: d.toLowerCase()
-            }))
-          })
-          
-          // Нормализуем имена врачей (trim) для точного совпадения
-          const normalizedAllowedDoctors = allowedDoctors.map(d => d.trim()).filter(d => d)
-          
-          // Применяем фильтр - используем точное совпадение
-          query = query.in('Доктор', normalizedAllowedDoctors)
-          
-          // Логируем финальный запрос для отладки
-          logger.info('getPatients: фильтр применен, выполняется запрос', {
-            email: normalizedEmail,
-            filterDoctors: normalizedAllowedDoctors,
-            originalDoctors: allowedDoctors
-          })
+
+        // Если указаны врачи ИЛИ медсестры - формируем фильтр
+        if (allowedDoctors.length > 0 || allowedNurses.length > 0) {
+          const filterParts: string[] = []
+
+          if (allowedDoctors.length > 0) {
+            const doctors = allowedDoctors.map(d => `"${d.trim()}"`).join(',')
+            filterParts.push(`Доктор.in.(${doctors})`)
+          }
+
+          if (allowedNurses.length > 0) {
+            const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
+            filterParts.push(`Медсестра.in.(${nurses})`)
+          }
+
+          const filterStr = filterParts.join(',')
+          query = query.or(filterStr)
+
+          logger.info('getPatients: применен фильтр or()', { filterStr })
         } else {
-          // Если врачи не указаны - НЕ показываем пациентов
-          // Применяем фильтр, который ничего не вернет (несуществующий врач)
-          logger.warn('getPatients: ВНИМАНИЕ - врачи не указаны для email, показываем 0 пациентов', {
-            email: normalizedEmail,
-            reason: 'allowedDoctors array is empty',
-            action: 'Применяем фильтр, который вернет пустой результат'
-          })
-          
-          // Применяем фильтр с несуществующим врачом, чтобы вернуть пустой результат
-          query = query.eq('Доктор', '__NO_DOCTORS_SELECTED__')
+          // Если ничего не указано - ничего не показываем
+          query = query.eq('Доктор', '__NONE__')
         }
       } else {
         // Если email не найден - НЕ показываем пациентов
-        logger.warn('getPatients: ВНИМАНИЕ - email не найден, показываем 0 пациентов', {
-          warning: 'Email не был передан и не найден в cookie!',
-          action: 'Применяем фильтр, который вернет пустой результат'
-        })
-        
-        // Применяем фильтр с несуществующим врачом, чтобы вернуть пустой результат
-        query = query.eq('Доктор', '__NO_EMAIL_FOUND__')
+        query = query.eq('Доктор', '__NO_EMAIL__')
       }
     } else {
       // Если админ, пытаемся получить email для логов, но не применяем фильтр
@@ -161,9 +139,9 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
       }
     }
     // Если админ - не применяем фильтрацию, показываем всех пациентов
-    
+
     const { data, error } = await query
-    
+
     // Логируем результат запроса
     logger.info('getPatients: результат запроса', {
       isAdmin,
@@ -172,77 +150,77 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
       hasError: !!error,
       errorMessage: error?.message
     })
-    
-      // Если есть данные, логируем уникальных врачей в результате
-      if (data && data.length > 0) {
-        const uniqueDoctors = [...new Set(data.map(p => p.Доктор).filter(Boolean))]
-        logger.info('getPatients: врачи в результате запроса', {
-          email: email ? email.toLowerCase().trim() : 'не указан',
-          uniqueDoctors,
-          uniqueDoctorsCount: uniqueDoctors.length,
-          totalPatients: data.length
+
+    // Если есть данные, логируем уникальных врачей в результате
+    if (data && data.length > 0) {
+      const uniqueDoctors = [...new Set(data.map(p => p.Доктор).filter(Boolean))]
+      logger.info('getPatients: врачи в результате запроса', {
+        email: email ? email.toLowerCase().trim() : 'не указан',
+        uniqueDoctors,
+        uniqueDoctorsCount: uniqueDoctors.length,
+        totalPatients: data.length
+      })
+
+      // Если не админ и есть email, проверяем, соответствуют ли врачи в результате разрешенным
+      if (!isAdmin && email) {
+        const normalizedEmail = email.toLowerCase().trim()
+        const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
+
+        logger.info('getPatients: сравнение врачей в результате с разрешенными', {
+          email: normalizedEmail,
+          allowedDoctors,
+          doctorsInResult: uniqueDoctors,
+          allowedDoctorsCount: allowedDoctors.length,
+          doctorsInResultCount: uniqueDoctors.length
         })
-        
-        // Если не админ и есть email, проверяем, соответствуют ли врачи в результате разрешенным
-        if (!isAdmin && email) {
-          const normalizedEmail = email.toLowerCase().trim()
-          const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
-          
-          logger.info('getPatients: сравнение врачей в результате с разрешенными', {
+
+        if (allowedDoctors.length > 0) {
+          // Проверяем точное совпадение
+          const exactMatches = uniqueDoctors.filter(d => allowedDoctors.includes(d))
+          const unexpectedDoctors = uniqueDoctors.filter(d => !allowedDoctors.includes(d))
+
+          logger.info('getPatients: анализ совпадений', {
             email: normalizedEmail,
-            allowedDoctors,
-            doctorsInResult: uniqueDoctors,
-            allowedDoctorsCount: allowedDoctors.length,
-            doctorsInResultCount: uniqueDoctors.length
+            exactMatches,
+            exactMatchesCount: exactMatches.length,
+            unexpectedDoctors,
+            unexpectedDoctorsCount: unexpectedDoctors.length
           })
-          
-          if (allowedDoctors.length > 0) {
-            // Проверяем точное совпадение
-            const exactMatches = uniqueDoctors.filter(d => allowedDoctors.includes(d))
-            const unexpectedDoctors = uniqueDoctors.filter(d => !allowedDoctors.includes(d))
-            
-            logger.info('getPatients: анализ совпадений', {
+
+          if (unexpectedDoctors.length > 0) {
+            logger.warn('getPatients: ВНИМАНИЕ - в результате есть врачи, которых нет в whitelist!', {
               email: normalizedEmail,
-              exactMatches,
-              exactMatchesCount: exactMatches.length,
+              allowedDoctors,
               unexpectedDoctors,
-              unexpectedDoctorsCount: unexpectedDoctors.length
-            })
-            
-            if (unexpectedDoctors.length > 0) {
-              logger.warn('getPatients: ВНИМАНИЕ - в результате есть врачи, которых нет в whitelist!', {
-                email: normalizedEmail,
-                allowedDoctors,
-                unexpectedDoctors,
-                allDoctorsInResult: uniqueDoctors,
-                warning: 'Возможно, проблема с точным совпадением имен врачей!'
-              })
-            }
-            
-            // Проверяем, все ли разрешенные врачи есть в результате
-            const missingDoctors = allowedDoctors.filter(d => !uniqueDoctors.includes(d))
-            if (missingDoctors.length > 0) {
-              logger.warn('getPatients: ВНИМАНИЕ - некоторые разрешенные врачи отсутствуют в результате!', {
-                email: normalizedEmail,
-                allowedDoctors,
-                missingDoctors,
-                doctorsInResult: uniqueDoctors,
-                warning: 'Возможно, у этих врачей нет пациентов или проблема с фильтрацией!'
-              })
-            }
-          } else {
-            logger.warn('getPatients: ВНИМАНИЕ - allowedDoctors пустой, но есть результат!', {
-              email: normalizedEmail,
-              doctorsInResult: uniqueDoctors,
-              warning: 'Это означает, что фильтр не применялся!'
+              allDoctorsInResult: uniqueDoctors,
+              warning: 'Возможно, проблема с точным совпадением имен врачей!'
             })
           }
+
+          // Проверяем, все ли разрешенные врачи есть в результате
+          const missingDoctors = allowedDoctors.filter(d => !uniqueDoctors.includes(d))
+          if (missingDoctors.length > 0) {
+            logger.warn('getPatients: ВНИМАНИЕ - некоторые разрешенные врачи отсутствуют в результате!', {
+              email: normalizedEmail,
+              allowedDoctors,
+              missingDoctors,
+              doctorsInResult: uniqueDoctors,
+              warning: 'Возможно, у этих врачей нет пациентов или проблема с фильтрацией!'
+            })
+          }
+        } else {
+          logger.warn('getPatients: ВНИМАНИЕ - allowedDoctors пустой, но есть результат!', {
+            email: normalizedEmail,
+            doctorsInResult: uniqueDoctors,
+            warning: 'Это означает, что фильтр не применялся!'
+          })
         }
       }
-    
+    }
+
     if (error) {
       logger.error('Ошибка при получении данных пациентов из Supabase:', error);
-      
+
       // Более детальная обработка ошибок
       if (error.message.includes('fetch failed') || error.message.includes('network')) {
         throw new Error(`Ошибка подключения к Supabase. Проверьте NEXT_PUBLIC_SUPABASE_URL: ${error.message}`);
@@ -259,12 +237,12 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
 
   } catch (error) {
     logger.error('Ошибка при получении данных пациентов:', error);
-    
+
     // Если это уже наша ошибка, пробрасываем как есть
     if (error instanceof Error && error.message.startsWith('Ошибка')) {
       throw error;
     }
-    
+
     // Иначе оборачиваем в понятное сообщение
     throw new Error(`Ошибка при загрузке пациентов: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -285,7 +263,7 @@ export async function getPatientChanges(patientId: string): Promise<Array<{
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     const { data, error } = await supabase
       .from('patient_changes')
       .select('field_name, old_value, new_value, changed_at, changed_by_email')
@@ -314,18 +292,18 @@ export async function getChangedPatients(): Promise<PatientData[]> {
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     // Проверяем, является ли пользователь админом
     const isAdmin = await checkAdminAuth()
-    
+
     logger.info('getChangedPatients: начало', {
       isAdmin,
       timestamp: new Date().toISOString(),
     })
-    
+
     let query = supabase.from('patients').select('*')
     let email: string | undefined
-    
+
     // Если пользователь не админ, применяем фильтрацию по врачам
     if (!isAdmin) {
       // Получаем email из cookie
@@ -340,43 +318,38 @@ export async function getChangedPatients(): Promise<PatientData[]> {
       } catch (error) {
         logger.error('getChangedPatients: ошибка чтения cookie', { error })
       }
-      
-      // Если есть email пользователя, проверяем ограничения по врачам
+
+      // Если есть email пользователя, проверяем ограничения
       if (email) {
         const normalizedEmail = email.toLowerCase().trim()
         const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
-        
-        logger.info('getChangedPatients: получены разрешенные врачи', {
-          email: normalizedEmail,
-          allowedDoctors,
-          doctorsCount: allowedDoctors.length
-        })
-        
-        // Если врачи указаны - показываем только их пациентов
-        if (allowedDoctors.length > 0) {
-          const normalizedAllowedDoctors = allowedDoctors.map(d => d.trim()).filter(d => d)
-          query = query.in('Доктор', normalizedAllowedDoctors)
-          
-          logger.info('getChangedPatients: фильтр по врачам применен', {
-            email: normalizedEmail,
-            filterDoctors: normalizedAllowedDoctors,
-          })
+        const allowedNurses = await getNursesForEmailByEmail(normalizedEmail)
+
+        if (allowedDoctors.length > 0 || allowedNurses.length > 0) {
+          const filterParts: string[] = []
+
+          if (allowedDoctors.length > 0) {
+            const doctors = allowedDoctors.map(d => `"${d.trim()}"`).join(',')
+            filterParts.push(`Доктор.in.(${doctors})`)
+          }
+
+          if (allowedNurses.length > 0) {
+            const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
+            filterParts.push(`Медсестра.in.(${nurses})`)
+          }
+
+          const filterStr = filterParts.join(',')
+          query = query.or(filterStr)
         } else {
-          // Если врачи не указаны - НЕ показываем пациентов
-          logger.warn('getChangedPatients: врачи не указаны для email, показываем 0 пациентов', {
-            email: normalizedEmail,
-          })
-          query = query.eq('Доктор', '__NO_DOCTORS_SELECTED__')
+          query = query.eq('Доктор', '__NONE__')
         }
       } else {
-        // Если email не найден - НЕ показываем пациентов
-        logger.warn('getChangedPatients: email не найден, показываем 0 пациентов')
-        query = query.eq('Доктор', '__NO_EMAIL_FOUND__')
+        query = query.eq('Доктор', '__NO_EMAIL__')
       }
     } else {
       logger.info('getChangedPatients: пользователь является админом, показываем всех пациентов без фильтрации')
     }
-    
+
     // Получаем данные с применением фильтров
     const { data, error } = await query.order('id', { ascending: false })
 
@@ -454,7 +427,7 @@ export async function addPatient(data: PatientData): Promise<void> {
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     const { error } = await supabase
       .from('patients')
       .insert([data]);
@@ -525,7 +498,7 @@ async function savePatientChanges(
     if (changes.length > 0) {
       // Устанавливаем анонимную сессию для RLS
       await ensureAnonymousSession()
-      
+
       const { error } = await supabase
         .from('patient_changes')
         .insert(changes)
@@ -561,7 +534,7 @@ export async function updatePatient(
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     // Получаем старые данные перед обновлением
     const { data: oldData, error: fetchError } = await supabase
       .from('patients')
@@ -609,7 +582,7 @@ export async function deletePatient(patientId: string): Promise<void> {
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     const { error } = await supabase
       .from('patients')
       .delete()
@@ -639,7 +612,7 @@ export async function archiveAndRemovePatient(patientId: string, deletedByEmail:
   try {
     // Устанавливаем анонимную сессию для RLS
     await safeEnsureAnonymousSession()
-    
+
     // 1. Сначала получаем данные пациента
     const { data: patient, error: fetchError } = await supabase
       .from('patients')

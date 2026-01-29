@@ -13,7 +13,7 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
   const router = useRouter()
 
   // Доступ к полям напрямую из объекта patient
-  const { id, name, phone, date, time, doctor, status } = patient
+  const { id, name, phone, date, time, doctor, status, birthDate } = patient
 
   const formattedTime = formatTime(time) // "HH:MM"
   const formattedPhone = phone ? `+${phone.replace(/\D/g, '').replace(/(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/, '$1 ($2) $3-$4-$5')}` : 'Не указан'
@@ -25,7 +25,7 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
   // Функция для получения иконки статуса
   const getStatusIcon = (status: string) => {
     const statusLower = status?.toLowerCase() || ''
-    
+
     if (statusLower.includes('завершен')) {
       // Завершен - галочка в круге (зеленый)
       return (
@@ -65,45 +65,50 @@ export function PatientCard({ patient, rowIndex }: PatientCardProps) {
   }
 
   return (
-      <div
+    <div
       onClick={handleClick}
-        className="bg-white rounded-[20px] p-5 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
-      >
-        <div className="flex justify-between items-start mb-2">
-          <h2 className="text-xl font-semibold text-gray-900 leading-tight">
-            {name}
-          </h2>
-          {time && date && (
-            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap">
-              {date} {formattedTime}
-            </span>
-          )}
-        </div>
-
-        <div className="text-gray-600 text-sm mb-2">
-          {doctor && <p className="font-medium">Врач: {doctor}</p>}
-        </div>
-
-        <div className="flex items-center text-gray-500 text-sm">
-          {phone && (
-            <a
-              href={`tel:${phone.replace(/\D/g, '')}`}
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center text-blue-600 hover:underline"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-              </svg>
-              {formattedPhone}
-            </a>
-          )}
-          {status && (
-            <span className="ml-4 flex items-center">
-              {getStatusIcon(status)}
-              {status}
-            </span>
-          )}
-        </div>
+      className="bg-white rounded-[20px] p-5 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
+    >
+      <div className="flex justify-between items-start mb-2">
+        <h2 className="text-xl font-semibold text-gray-900 leading-tight">
+          {name}
+        </h2>
+        {time && date && (
+          <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap">
+            {date} {formattedTime}
+          </span>
+        )}
       </div>
+
+      <div className="flex justify-between items-center text-gray-600 text-sm mb-2">
+        {doctor && <p className="font-medium">Врач: {doctor}</p>}
+        {birthDate && (
+          <p className="text-gray-500">
+            Д.Р.: {new Date(birthDate).toLocaleDateString('ru-RU')}
+          </p>
+        )}
+      </div>
+
+      <div className="flex items-center text-gray-500 text-sm">
+        {phone && (
+          <a
+            href={`tel:${phone.replace(/\D/g, '')}`}
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center text-blue-600 hover:underline"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+            </svg>
+            {formattedPhone}
+          </a>
+        )}
+        {status && (
+          <span className="ml-4 flex items-center">
+            {getStatusIcon(status)}
+            {status}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
