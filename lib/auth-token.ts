@@ -3,8 +3,10 @@ const AUTH_SECRET = process.env.AUTH_SECRET || 'default-secret-do-not-use-in-pro
 /**
  * Вспомогательная функция для конвертации строки в ArrayBuffer
  */
-function str2ab(str: string): Uint8Array {
-    return new TextEncoder().encode(str)
+function str2ab(str: string): ArrayBuffer {
+    const encoder = new TextEncoder()
+    const uint8Array = encoder.encode(str)
+    return uint8Array.buffer
 }
 
 /**
@@ -23,13 +25,13 @@ export async function createToken(payload: string): Promise<string> {
 
     const key = await crypto.subtle.importKey(
         'raw',
-        keyData as Uint8Array,
+        keyData,
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         ['sign']
     )
 
-    const signature = await crypto.subtle.sign('HMAC', key, data as Uint8Array)
+    const signature = await crypto.subtle.sign('HMAC', key, data)
     return `${payload}.${buf2hex(signature)}`
 }
 
@@ -47,7 +49,7 @@ export async function verifyToken(token: string | undefined): Promise<string | n
 
     const key = await crypto.subtle.importKey(
         'raw',
-        keyData as Uint8Array,
+        keyData,
         { name: 'HMAC', hash: 'SHA-256' },
         false,
         ['verify']
@@ -56,7 +58,7 @@ export async function verifyToken(token: string | undefined): Promise<string | n
     // Конвертируем hex-подпись обратно в Uint8Array
     const sigBytes = new Uint8Array(signature.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)))
 
-    const isValid = await crypto.subtle.verify('HMAC', key, sigBytes as Uint8Array, data as Uint8Array)
+    const isValid = await crypto.subtle.verify('HMAC', key, sigBytes.buffer, data)
 
     if (isValid) {
         return payload
