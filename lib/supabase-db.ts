@@ -99,27 +99,31 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
           allowedNurses,
         })
 
-        // Если указаны врачи ИЛИ медсестры - формируем фильтр
-        if (allowedDoctors.length > 0 || allowedNurses.length > 0) {
-          const filterParts: string[] = []
+        // Если указаны врачи
+        if (allowedDoctors.length > 0) {
+          query = query.in('Доктор', allowedDoctors.map(d => d.trim()))
 
-          if (allowedDoctors.length > 0) {
-            const doctors = allowedDoctors.map(d => `"${d.trim()}"`).join(',')
-            filterParts.push(`Доктор.in.(${doctors})`)
-          }
-
+          // Если также указаны медсестры, фильтруем записи этих врачей
           if (allowedNurses.length > 0) {
             const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
-            filterParts.push(`Медсестра.in.(${nurses})`)
+            query = query.or(`Медсестра.in.(${nurses}),Медсестра.is.null,Медсестра.eq.""`)
+            logger.info('getPatients: применен фильтр по врачам + ограничение по медсестрам', {
+              doctors: allowedDoctors,
+              nurses: allowedNurses
+            })
+          } else {
+            logger.info('getPatients: применен фильтр только по врачам', { doctors: allowedDoctors })
           }
-
-          const filterStr = filterParts.join(',')
-          query = query.or(filterStr)
-
-          logger.info('getPatients: применен фильтр or()', { filterStr })
-        } else {
-          // Если ничего не указано - ничего не показываем
+        }
+        // Если указаны только медсестры
+        else if (allowedNurses.length > 0) {
+          query = query.in('Медсестра', allowedNurses.map(n => n.trim()))
+          logger.info('getPatients: применен фильтр только по медсестрам', { nurses: allowedNurses })
+        }
+        // Если ничего не указано - ничего не показываем
+        else {
           query = query.eq('Доктор', '__NONE__')
+          logger.info('getPatients: нет разрешенных врачей/медсестер, доступ закрыт')
         }
       } else {
         // Если email не найден - НЕ показываем пациентов
@@ -325,21 +329,14 @@ export async function getChangedPatients(): Promise<PatientData[]> {
         const allowedDoctors = await getDoctorsForEmailByEmail(normalizedEmail)
         const allowedNurses = await getNursesForEmailByEmail(normalizedEmail)
 
-        if (allowedDoctors.length > 0 || allowedNurses.length > 0) {
-          const filterParts: string[] = []
-
-          if (allowedDoctors.length > 0) {
-            const doctors = allowedDoctors.map(d => `"${d.trim()}"`).join(',')
-            filterParts.push(`Доктор.in.(${doctors})`)
-          }
-
+        if (allowedDoctors.length > 0) {
+          query = query.in('Доктор', allowedDoctors.map(d => d.trim()))
           if (allowedNurses.length > 0) {
             const nurses = allowedNurses.map(n => `"${n.trim()}"`).join(',')
-            filterParts.push(`Медсестра.in.(${nurses})`)
+            query = query.or(`Медсестра.in.(${nurses}),Медсестра.is.null,Медсестра.eq.""`)
           }
-
-          const filterStr = filterParts.join(',')
-          query = query.or(filterStr)
+        } else if (allowedNurses.length > 0) {
+          query = query.in('Медсестра', allowedNurses.map(n => n.trim()))
         } else {
           query = query.eq('Доктор', '__NONE__')
         }
