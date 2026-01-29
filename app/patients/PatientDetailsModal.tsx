@@ -10,6 +10,32 @@ import { useConstants } from '../hooks/useConstants'
 import { formatTime } from '@/lib/utils'
 import { ConfirmChangesModal } from './ConfirmChangesModal'
 
+// Функция для форматирования даты рождения DD.MM.YYYY
+function formatBirthDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const day = digits.slice(0, 2)
+  const month = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+
+  if (digits.length <= 2) return day
+  if (digits.length <= 4) return `${day}.${month}`
+  return `${day}.${month}.${year}`
+}
+
+// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
+function convertToISODate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return ''
+  const [day, month, year] = dateStr.split('.')
+  return `${year}-${month}-${day}`
+}
+
+// Функция для конвертации из YYYY-MM-DD в DD.MM.YYYY
+function convertISOToDisplay(isoStr: string): string {
+  if (!isoStr || !isoStr.includes('-')) return isoStr || ''
+  const [year, month, day] = isoStr.split('-')
+  return `${day}.${month}.${year}`
+}
+
 interface PatientDetailsModalProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
   isOpen: boolean
@@ -25,6 +51,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
   const [error, setError] = useState<string | null>(null)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingClose, setPendingClose] = useState(false)
+  const [birthDateDisplay, setBirthDateDisplay] = useState('')
   const router = useRouter()
   const nameInputRef = useRef<HTMLInputElement>(null)
 
@@ -53,7 +80,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       if (!isNaN(dateObj.getTime())) {
         return dateObj.toISOString().split('T')[0]
       }
-    } catch (e) {}
+    } catch (e) { }
     return date
   })() : ''
 
@@ -106,10 +133,23 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
     }
     setInitialData(newInitialData)
     setFormData(newInitialData)
+    setBirthDateDisplay(birthDate ? convertISOToDisplay(birthDate) : '')
     setError(null)
     setShowConfirmModal(false)
     setPendingClose(false)
   }, [patient, isOpen, name, phone, formattedDate, time, doctor, status, comments, birthDate, teeth, nurse])
+
+  function handleBirthDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setBirthDateDisplay(formatted)
+
+    if (formatted.length === 10) {
+      setFormData({ ...formData, birthDate: convertToISODate(formatted) })
+    } else {
+      setFormData({ ...formData, birthDate: '' })
+    }
+  }
 
   // Функция для проверки наличия изменений
   const hasChanges = () => {
@@ -276,16 +316,16 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end justify-center z-50 p-0 sm:p-4">
-        <div 
+        <div
           className="bg-white rounded-t-[20px] sm:rounded-[20px] w-full max-w-md shadow-xl flex flex-col"
-          style={{ 
+          style={{
             maxHeight: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))',
             height: 'calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom))'
           }}
         >
           {/* Фиксированный заголовок */}
-          <div 
-            className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-[20px]" 
+          <div
+            className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-[20px]"
             style={{ paddingTop: 'max(1rem, calc(1rem + env(safe-area-inset-top)))' }}
           >
             <h2 className="text-xl font-bold text-gray-900">
@@ -303,168 +343,172 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
           <div className="flex-1 overflow-y-auto overscroll-contain">
             <form id="patient-form" onSubmit={handleSubmit} className="p-6">
               <div className="space-y-6">
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                ФИО
-              </label>
-              <input
-                ref={nameInputRef}
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                required
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    ФИО
+                  </label>
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    required
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Телефон
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                required
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="+7 (999) 123-45-67"
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Дата рождения пациента
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    name="birthDateDisplay"
+                    value={birthDateDisplay}
+                    onChange={handleBirthDateChange}
+                    placeholder="ДД.ММ.ГГГГ"
+                    maxLength={10}
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Дата приема
-              </label>
-              <input
-                type="date"
-                name="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                required
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Телефон
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    required
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="+7 (999) 123-45-67"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Время
-              </label>
-              <input
-                type="time"
-                name="time"
-                value={formData.time}
-                onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                required
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Дата приема
+                  </label>
+                  <input
+                    type="date"
+                    name="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    required
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Статус
-              </label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                {PATIENT_STATUSES.map(status => (
-                  <option key={status} value={status}>{status}</option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Время
+                  </label>
+                  <input
+                    type="time"
+                    name="time"
+                    value={formData.time}
+                    onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                    required
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Доктор
-              </label>
-              <select
-                name="doctor"
-                value={formData.doctor}
-                onChange={(e) => setFormData({ ...formData, doctor: e.target.value })}
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Выберите врача</option>
-                {doctors.map(doctor => (
-                  <option key={doctor} value={doctor}>{doctor}</option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Статус
+                  </label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    {PATIENT_STATUSES.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Медсестра
-              </label>
-              <select
-                name="nurse"
-                value={formData.nurse}
-                onChange={(e) => setFormData({ ...formData, nurse: e.target.value })}
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Выберите медсестру</option>
-                {nurses.map(nurse => (
-                  <option key={nurse} value={nurse}>{nurse}</option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Доктор
+                  </label>
+                  <select
+                    name="doctor"
+                    value={formData.doctor}
+                    onChange={(e) => setFormData({ ...formData, doctor: e.target.value })}
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Выберите врача</option>
+                    {doctors.map(doctor => (
+                      <option key={doctor} value={doctor}>{doctor}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Зубы
-              </label>
-              <input
-                type="text"
-                name="teeth"
-                value={formData.teeth}
-                onChange={(e) => setFormData({ ...formData, teeth: e.target.value })}
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Например: 11, 12, 13 или все"
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Медсестра
+                  </label>
+                  <select
+                    name="nurse"
+                    value={formData.nurse}
+                    onChange={(e) => setFormData({ ...formData, nurse: e.target.value })}
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="">Выберите медсестру</option>
+                    {nurses.map(nurse => (
+                      <option key={nurse} value={nurse}>{nurse}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Комментарии
-              </label>
-              <textarea
-                name="comments"
-                value={formData.comments}
-                onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
-                rows={3}
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                placeholder="Дополнительная информация..."
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Зубы
+                  </label>
+                  <input
+                    type="text"
+                    name="teeth"
+                    value={formData.teeth}
+                    onChange={(e) => setFormData({ ...formData, teeth: e.target.value })}
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Например: 11, 12, 13 или все"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-lg font-medium text-gray-700 mb-3">
-                Дата рождения пациента
-              </label>
-              <input
-                type="date"
-                name="birthDate"
-                value={formData.birthDate}
-                onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-700 mb-3">
+                    Комментарии
+                  </label>
+                  <textarea
+                    name="comments"
+                    value={formData.comments}
+                    onChange={(e) => setFormData({ ...formData, comments: e.target.value })}
+                    rows={3}
+                    className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    placeholder="Дополнительная информация..."
+                  />
+                </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-base">
-                {error}
-              </div>
-            )}
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-base">
+                    {error}
+                  </div>
+                )}
               </div>
             </form>
           </div>
 
           {/* Sticky bottom buttons */}
-          <div 
+          <div
             className="flex-shrink-0 bg-white border-t border-gray-200 px-6 flex flex-col gap-3"
-            style={{ 
+            style={{
               paddingBottom: 'max(1rem, calc(1rem + env(safe-area-inset-bottom)))',
               paddingTop: '1rem'
             }}

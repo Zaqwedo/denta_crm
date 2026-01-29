@@ -11,6 +11,32 @@ import { useConstants } from '../../hooks/useConstants'
 import { formatTime } from '@/lib/utils'
 import { ConfirmChangesModal } from '../ConfirmChangesModal'
 
+// Функция для форматирования даты рождения DD.MM.YYYY
+function formatBirthDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const day = digits.slice(0, 2)
+  const month = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+
+  if (digits.length <= 2) return day
+  if (digits.length <= 4) return `${day}.${month}`
+  return `${day}.${month}.${year}`
+}
+
+// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
+function convertToISODate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return ''
+  const [day, month, year] = dateStr.split('.')
+  return `${year}-${month}-${day}`
+}
+
+// Функция для конвертации из YYYY-MM-DD в DD.MM.YYYY
+function convertISOToDisplay(isoStr: string): string {
+  if (!isoStr || !isoStr.includes('-')) return isoStr || ''
+  const [year, month, day] = isoStr.split('-')
+  return `${day}.${month}.${year}`
+}
+
 interface PatientViewClientProps {
   patient: Record<string, any> | null
   error: string | null
@@ -27,6 +53,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
   const [error, setError] = useState<string | null>(initialError)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
+  const [birthDateDisplay, setBirthDateDisplay] = useState(initialPatient?.birthDate ? convertISOToDisplay(initialPatient.birthDate) : '')
   const nameInputRef = useRef<HTMLInputElement>(null)
 
   // Отладочное логирование (только в development)
@@ -64,7 +91,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       if (!isNaN(dateObj.getTime())) {
         return dateObj.toISOString().split('T')[0]
       }
-    } catch (e) {}
+    } catch (e) { }
     return initialPatient.date
   })() : ''
 
@@ -112,7 +139,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
           if (!isNaN(dateObj.getTime())) {
             return dateObj.toISOString().split('T')[0]
           }
-        } catch (e) {}
+        } catch (e) { }
         return initialPatient.date
       })() : ''
 
@@ -131,10 +158,23 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
 
       setInitialData(newInitialData)
       setFormData(newInitialData)
+      setBirthDateDisplay(initialPatient.birthDate ? convertISOToDisplay(initialPatient.birthDate) : '')
       setShowConfirmModal(false)
       setPendingNavigation(null)
     }
   }, [initialPatient])
+
+  function handleBirthDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setBirthDateDisplay(formatted)
+
+    if (formatted.length === 10) {
+      setFormData({ ...formData, birthDate: convertToISODate(formatted) })
+    } else {
+      setFormData({ ...formData, birthDate: '' })
+    }
+  }
 
   // Функция для проверки наличия изменений
   const hasChanges = () => {
@@ -226,7 +266,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
     formDataObj.append('birthDate', formData.birthDate)
     formDataObj.append('teeth', formData.teeth)
     formDataObj.append('nurse', formData.nurse)
-    
+
     try {
       const result = await handleUpdatePatient(patientId, formDataObj, user?.username || undefined)
 
@@ -313,8 +353,8 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
           </div>
 
           {/* Form */}
-          <form 
-            id="patient-form" 
+          <form
+            id="patient-form"
             onSubmit={handleSubmit}
             className="bg-white rounded-[20px] p-6 shadow-sm transition-all"
             style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
@@ -333,6 +373,27 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
                   required
                   className="w-full max-w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border cursor-text"
                   style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="w-full" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                <label className="block text-lg font-medium text-gray-700 mb-3">
+                  Дата рождения пациента
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  name="birthDateDisplay"
+                  value={birthDateDisplay}
+                  onChange={handleBirthDateChange}
+                  placeholder="ДД.ММ.ГГГГ"
+                  maxLength={10}
+                  className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box'
+                  }}
                 />
               </div>
 
@@ -483,23 +544,6 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
                 />
               </div>
 
-              <div className="w-full" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                <label className="block text-lg font-medium text-gray-700 mb-3">
-                  Дата рождения пациента
-                </label>
-                <input
-                  type="date"
-                  name="birthDate"
-                  value={formData.birthDate}
-                  onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                  className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
-                  style={{
-                    width: '100%',
-                    maxWidth: '100%',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-base">

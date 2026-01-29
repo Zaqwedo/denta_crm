@@ -7,6 +7,25 @@ import { useAuth } from '../contexts/AuthContext'
 import { PATIENT_STATUSES } from '../../lib/constants'
 import { useConstants } from '../hooks/useConstants'
 
+// Функция для форматирования даты рождения DD.MM.YYYY
+function formatBirthDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const day = digits.slice(0, 2)
+  const month = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+
+  if (digits.length <= 2) return day
+  if (digits.length <= 4) return `${day}.${month}`
+  return `${day}.${month}.${year}`
+}
+
+// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
+function convertToISODate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return ''
+  const [day, month, year] = dateStr.split('.')
+  return `${year}-${month}-${day}`
+}
+
 // Функция для форматирования телефона с маской
 function formatPhone(value: string): string {
   const numbers = value.replace(/\D/g, '')
@@ -31,6 +50,7 @@ export function NewPatientForm() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [phoneValue, setPhoneValue] = useState('+7 (')
+  const [birthDateDisplay, setBirthDateDisplay] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -71,6 +91,13 @@ export function NewPatientForm() {
         ? `+${phoneDigits}`
         : `+7${phoneDigits}`
     formData.set('phone', finalFormattedPhone)
+
+    // Конвертируем дату рождения перед отправкой
+    if (birthDateDisplay.length === 10) {
+      formData.set('birthDate', convertToISODate(birthDateDisplay))
+    } else {
+      formData.set('birthDate', '')
+    }
 
     try {
       console.log('📤 CLIENT: Отправляем данные на сервер через wrapper')
@@ -116,6 +143,12 @@ export function NewPatientForm() {
     setPhoneValue(formatted)
   }
 
+  function handleBirthDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setBirthDateDisplay(formatted)
+  }
+
   return (
     <form
       action={submitForm}
@@ -133,6 +166,22 @@ export function NewPatientForm() {
           required
           className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           placeholder="Введите ФИО пациента *"
+        />
+      </div>
+
+      <div>
+        <label className="block text-lg font-medium text-gray-700 mb-3">
+          Дата рождения пациента
+        </label>
+        <input
+          type="text"
+          inputMode="numeric"
+          name="birthDateDisplay"
+          value={birthDateDisplay}
+          onChange={handleBirthDateChange}
+          placeholder="ДД.ММ.ГГГГ"
+          maxLength={10}
+          className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
         />
       </div>
 
@@ -241,16 +290,6 @@ export function NewPatientForm() {
         />
       </div>
 
-      <div>
-        <label className="block text-lg font-medium text-gray-700 mb-3">
-          Дата рождения пациента
-        </label>
-        <input
-          type="date"
-          name="birthDate"
-          className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-        />
-      </div>
 
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-700 px-5 py-4 rounded-[14px] text-base">

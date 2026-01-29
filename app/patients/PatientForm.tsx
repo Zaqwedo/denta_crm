@@ -7,20 +7,39 @@ import { useAuth } from '../contexts/AuthContext'
 import { PATIENT_STATUSES } from '../../lib/constants'
 import { useConstants } from '../hooks/useConstants'
 
+// Функция для форматирования даты рождения DD.MM.YYYY
+function formatBirthDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const day = digits.slice(0, 2)
+  const month = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+
+  if (digits.length <= 2) return day
+  if (digits.length <= 4) return `${day}.${month}`
+  return `${day}.${month}.${year}`
+}
+
+// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
+function convertToISODate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return ''
+  const [day, month, year] = dateStr.split('.')
+  return `${year}-${month}-${day}`
+}
+
 // Функция для форматирования телефона с маской
 function formatPhone(value: string): string {
   // Удаляем все нецифровые символы
   const numbers = value.replace(/\D/g, '')
-  
+
   // Если начинается с 8, заменяем на 7
   let formatted = numbers.startsWith('8') ? '7' + numbers.slice(1) : numbers
   if (formatted.startsWith('7')) {
     formatted = formatted.slice(1)
   }
-  
+
   // Ограничиваем до 10 цифр
   const limited = formatted.slice(0, 10)
-  
+
   // Форматируем: +7 (999) 999-99-99
   if (limited.length === 0) return '+7 ('
   if (limited.length <= 3) return `+7 (${limited}`
@@ -48,6 +67,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phoneValue, setPhoneValue] = useState('+7 (')
+  const [birthDateDisplay, setBirthDateDisplay] = useState('')
   const nameInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
@@ -81,13 +101,21 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
     const phoneInput = formData.get('phone') as string
     const formattedPhone = phoneInput ? `+7${getPhoneDigits(phoneInput).slice(1)}` : ''
     formData.set('phone', formattedPhone)
-    
+
+    // Конвертируем дату рождения перед отправкой
+    if (birthDateDisplay.length === 10) {
+      formData.set('birthDate', convertToISODate(birthDateDisplay))
+    } else {
+      formData.set('birthDate', '')
+    }
+
     try {
       const result = await handleAddPatient(formData)
 
       if (result.success) {
         onClose?.() // Используем onClose из пропсов
         setPhoneValue('+7 (')
+        setBirthDateDisplay('')
         // Сбрасываем форму
         e.currentTarget.reset()
         // Обновляем страницу
@@ -121,6 +149,12 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
     }
   }
 
+  function handleBirthDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setBirthDateDisplay(formatted)
+  }
+
   return (
     <>
       {!isModal && (
@@ -143,6 +177,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                   onClose?.() // Используем onClose из пропсов
                   setError(null)
                   setPhoneValue('+7 (')
+                  setBirthDateDisplay('')
                 }}
                 className="text-gray-400 hover:text-gray-600 text-2xl"
               >
@@ -166,6 +201,23 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Иван Иванов"
                     autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="birthDate" className="block text-sm font-medium text-gray-700 mb-2">
+                    Дата рождения пациента
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    id="birthDate"
+                    name="birthDateDisplay"
+                    value={birthDateDisplay}
+                    onChange={handleBirthDateChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="ДД.ММ.ГГГГ"
+                    maxLength={10}
                   />
                 </div>
 
@@ -285,17 +337,6 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                   />
                 </div>
 
-                <div>
-                  <label htmlFor="birthDate" className="block text-sm font-medium text-gray-700 mb-2">
-                    Дата рождения пациента
-                  </label>
-                  <input
-                    type="date"
-                    id="birthDate"
-                    name="birthDate"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
 
                 {error && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
@@ -310,6 +351,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                       onClose?.() // Используем onClose из пропсов
                       setError(null)
                       setPhoneValue('+7 (')
+                      setBirthDateDisplay('')
                     }}
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-xl font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                     disabled={isSubmitting}

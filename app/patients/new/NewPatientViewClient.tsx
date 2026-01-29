@@ -26,6 +26,25 @@ function formatPhone(value: string): string {
   return `+7 (${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6, 8)}-${limited.slice(8, 10)}`
 }
 
+// Функция для форматирования даты рождения DD.MM.YYYY
+function formatBirthDate(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const day = digits.slice(0, 2)
+  const month = digits.slice(2, 4)
+  const year = digits.slice(4, 8)
+
+  if (digits.length <= 2) return day
+  if (digits.length <= 4) return `${day}.${month}`
+  return `${day}.${month}.${year}`
+}
+
+// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
+function convertToISODate(dateStr: string): string {
+  if (!dateStr || dateStr.length < 10) return ''
+  const [day, month, year] = dateStr.split('.')
+  return `${year}-${month}-${day}`
+}
+
 interface NewPatientViewClientProps {
   initialDate?: string
 }
@@ -39,6 +58,7 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phoneValue, setPhoneValue] = useState('+7 (')
+  const [birthDateDisplay, setBirthDateDisplay] = useState('')
 
   // Используем дату из пропса или сегодняшнюю
   const initialDateValue = initialDate || new Date().toISOString().split('T')[0]
@@ -71,6 +91,18 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
     // Сохраняем только цифры в formData
     const digits = formatted.replace(/\D/g, '')
     setFormData({ ...formData, phone: digits.startsWith('7') ? `+${digits}` : `+7${digits.slice(1)}` })
+  }
+
+  function handleBirthDateChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const input = e.target.value
+    const formatted = formatBirthDate(input)
+    setBirthDateDisplay(formatted)
+
+    if (formatted.length === 10) {
+      setFormData({ ...formData, birthDate: convertToISODate(formatted) })
+    } else {
+      setFormData({ ...formData, birthDate: '' })
+    }
   }
 
   function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -151,8 +183,8 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
           </div>
 
           {/* Form */}
-          <form 
-            id="patient-form" 
+          <form
+            id="patient-form"
             onSubmit={handleSubmit}
             className="bg-white rounded-[20px] p-6 shadow-sm transition-all"
             style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}
@@ -172,6 +204,27 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
                   className="w-full max-w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border cursor-text"
                   style={{ width: '100%' }}
                   placeholder="Введите ФИО пациента"
+                />
+              </div>
+
+              <div className="w-full" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+                <label className="block text-lg font-medium text-gray-700 mb-3">
+                  Дата рождения пациента
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  name="birthDateDisplay"
+                  value={birthDateDisplay}
+                  onChange={handleBirthDateChange}
+                  className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
+                  style={{
+                    width: '100%',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box'
+                  }}
+                  placeholder="ДД.ММ.ГГГГ"
+                  maxLength={10}
                 />
               </div>
 
@@ -312,23 +365,6 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
                 />
               </div>
 
-              <div className="w-full" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-                <label className="block text-lg font-medium text-gray-700 mb-3">
-                  Дата рождения пациента
-                </label>
-                <input
-                  type="date"
-                  name="birthDate"
-                  value={formData.birthDate}
-                  onChange={(e) => setFormData({ ...formData, birthDate: e.target.value })}
-                  className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border"
-                  style={{
-                    width: '100%',
-                    maxWidth: '100%',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
 
               {error && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl text-base">
