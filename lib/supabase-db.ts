@@ -701,12 +701,22 @@ export async function mergePatients(
   target: { name: string, birthDate: string | null, emoji?: string | null, notes?: string | null }
 ): Promise<void> {
   try {
-    if (!sourceRecordIds || sourceRecordIds.length === 0) return;
+    if (!sourceRecordIds || sourceRecordIds.length === 0) {
+      console.warn('mergePatients: список ID пуст');
+      return;
+    }
 
     await safeEnsureAnonymousSession()
 
+    console.log('mergePatients: начинаю обновление', {
+      sourceCount: sourceRecordIds.length,
+      targetName: target.name,
+      targetBirth: target.birthDate,
+      ids: sourceRecordIds
+    });
+
     // Обновляем все записи переданных ID, меняя их ФИО и ДР на таргетные
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('patients')
       .update({
         'ФИО': target.name,
@@ -715,10 +725,17 @@ export async function mergePatients(
         'notes': target.notes
       })
       .in('id', sourceRecordIds)
+      .select(); // Добавляем select чтобы увидеть результат
 
-    if (error) throw error
+    if (error) {
+      console.error('mergePatients: ошибка Supabase', error);
+      throw error;
+    }
+
+    console.log('mergePatients: успешно обновлено записей:', data?.length);
   } catch (error) {
     logger.error('Ошибка при объединении пациентов:', error)
+    console.error('mergePatients: критическая ошибка', error);
     throw error
   }
 }

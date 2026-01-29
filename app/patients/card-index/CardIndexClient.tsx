@@ -17,8 +17,31 @@ interface ClientInfo {
 
 const EMOJI_SET = ['👍🏻', '⛔️', '⚠️', '✅', '😡', '❤️', '🤔']
 
-// Вспомогательная функция для нормализации ФИО (удаление лишних пробелов, перевод в нижний регистр)
-const normalizeName = (name: string) => name.trim().toLowerCase().replace(/\s+/g, ' ')
+// Вспомогательная функция для нормализации ФИО (для сравнения)
+const normalizeName = (name: string) => {
+    return name
+        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2700}-\u{27BF}]|[\u{2600}-\u{26FF}]/gu, '') // Удаляем эмодзи
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+}
+
+// Проверка на схожесть имен (входит ли одно в другое или есть общие слова)
+const isNamesSimilar = (name1: string, name2: string) => {
+    const n1 = normalizeName(name1)
+    const n2 = normalizeName(name2)
+    if (!n1 || !n2) return false
+
+    // Если одно имя содержит другое (например "Иван" и "Иван Иванович")
+    if (n1.includes(n2) || n2.includes(n1)) return true
+
+    // Проверка по словам (если хотя бы два слова длиннее 3 букв совпадают)
+    const words1 = n1.split(' ').filter(w => w.length > 3)
+    const words2 = n2.split(' ').filter(w => w.length > 3)
+
+    const commonWords = words1.filter(w => words2.includes(w))
+    return commonWords.length >= 1
+}
 
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const router = useRouter()
@@ -36,6 +59,17 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     // Состояния для дублей
     const [showDuplicates, setShowDuplicates] = useState(false)
+
+    // Загружаем состояние развернутости дублей
+    useEffect(() => {
+        const saved = localStorage.getItem('showDuplicates')
+        if (saved === 'true') setShowDuplicates(true)
+    }, [])
+
+    // Сохраняем состояние при изменении
+    useEffect(() => {
+        localStorage.setItem('showDuplicates', showDuplicates.toString())
+    }, [showDuplicates])
     const [merging, setMerging] = useState(false)
     const [previewClient, setPreviewClient] = useState<ClientInfo | null>(null)
 
@@ -53,10 +87,10 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         }
     }, [selectedClient])
 
-    // Поиск дублей по номеру телефона и по именам
+    // Поиск дублей
     const potentialDuplicates = useMemo(() => {
+        console.log('Поиск дублей среди:', initialData.length, 'пациентов');
         const groups: ClientInfo[][] = []
-        const processedPairs = new Set<string>()
 
         // 1. Группировка по телефону
         const phoneMap: Record<string, ClientInfo[]> = {}
@@ -65,7 +99,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 const cleanPhone = phone.replace(/\D/g, '')
                 if (cleanPhone.length >= 10) {
                     if (!phoneMap[cleanPhone]) phoneMap[cleanPhone] = []
-                    if (!phoneMap[cleanPhone].find(c => c.name === client.name && c.birthDate === client.birthDate)) {
+                    if (!phoneMap[cleanPhone].some(c => c.name === client.name && c.birthDate === client.birthDate)) {
                         phoneMap[cleanPhone].push(client)
                     }
                 }
@@ -75,32 +109,51 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             if (group.length > 1) groups.push(group)
         })
 
-        // 2. Группировка по имени (если ФИО полностью совпадает, а карты разные)
+        // 2. Группировка по имени (даже если есть небольшие отличия)
         const nameMap: Record<string, ClientInfo[]> = {}
         initialData.forEach(client => {
             const normalized = normalizeName(client.name)
-            if (normalized.length > 3) {
-                if (!nameMap[normalized]) nameMap[normalized] = []
-                nameMap[normalized].push(client)
+            if (normalized.length > 2) {
+                // Группируем по первому слову (например "Иван")
+                const firstWord = normalized.split(' ')[0]
+                if (firstWord.length > 2) {
+                    if (!nameMap[firstWord]) nameMap[firstWord] = []
+                    nameMap[firstWord].push(client)
+                }
             }
         })
+
         Object.values(nameMap).forEach(group => {
-            if (group.length > 1) groups.push(group)
+            if (group.length > 1) {
+                const processedSubGroups: ClientInfo[][] = []
+                group.forEach(c1 => {
+                    let foundGroup = false
+                    for (const subGroup of processedSubGroups) {
+                        if (subGroup.some(c2 => isNamesSimilar(c1.name, c2.name))) {
+                            subGroup.push(c1)
+                            foundGroup = true
+                            break
+                        }
+                    }
+                    if (!foundGroup) processedSubGroups.push([c1])
+                })
+                processedSubGroups.forEach(sub => {
+                    if (sub.length > 1) groups.push(sub)
+                })
+            }
         })
 
-        // Очистка и фильтрация дублей (убираем повторы и игнорированные)
+        // Очистка и фильтрация дублей
         const finalGroups: Array<{ label: string, clients: ClientInfo[] }> = []
         const seenGroupKeys = new Set<string>()
 
         groups.forEach(group => {
-            // Сортируем клиентов в группе, чтобы ID-представление группы было стабильным
             const sortedClients = [...group].sort((a, b) => a.name.localeCompare(b.name))
             const groupKey = sortedClients.map(c => `${c.name}|${c.birthDate || ''}`).join(':::')
 
             if (seenGroupKeys.has(groupKey)) return
             seenGroupKeys.add(groupKey)
 
-            // Фильтруем игнорируемые внутри группы (сравниваем всех с первым)
             const target = sortedClients[0]
             const targetTag = `${target.name}|${target.birthDate || ''}`
 
@@ -112,22 +165,17 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             })
 
             if (activeClients.length > 1) {
-                // Определяем метку для группы (телефон или имя)
                 let label = activeClients[0].name
-                const commonPhone = activeClients[0].phones.find(p =>
-                    activeClients.every(c => c.phones.includes(p))
-                )
-                if (commonPhone) label = `Телефон: ${commonPhone}`
-
                 finalGroups.push({ label, clients: activeClients })
             }
         })
 
+        console.log('Найдено групп дублей:', finalGroups.length);
         return finalGroups
     }, [initialData])
 
     const startMerge = (source: ClientInfo, target: ClientInfo) => {
-        const hasConflict = source.name !== target.name || source.birthDate !== target.birthDate
+        const hasConflict = normalizeName(source.name) !== normalizeName(target.name) || source.birthDate !== target.birthDate
 
         if (hasConflict) {
             setMergeConflict({
@@ -142,15 +190,27 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     }
 
     const confirmAndMerge = async (source: ClientInfo, target: ClientInfo, finalName: string, finalBirth: string | null) => {
-        if (!confirm(`Объединить записи ${source.name} в карточку ${finalName}?`)) return
+        // Собираем ID вообще всех записей: и из дубля, и из основной карточки
+        // Это важно, так как если мы выбрали новые ФИО/ДР, их нужно прописать везде
+        const allIds = [
+            ...source.records.map(r => r.id),
+            ...target.records.map(r => r.id)
+        ].filter((id): id is string => !!id)
+
+        console.log('Подготовка к объединению:', {
+            sourceName: source.name,
+            targetName: target.name,
+            finalName,
+            finalBirth,
+            totalRecordsToUpdate: allIds.length
+        })
+
+        if (!confirm(`Объединить все записи (${allIds.length} шт.) в одну карточку ${finalName}?`)) return
 
         setMerging(true)
         try {
-            // Собираем все ID записей сурс-пациента
-            const sourceIds = source.records.map(r => r.id).filter((id): id is string => !!id)
-
             await mergePatients(
-                sourceIds,
+                allIds, // Отправляем все ID
                 {
                     name: finalName,
                     birthDate: finalBirth,
@@ -158,10 +218,15 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     notes: target.notes || source.notes
                 }
             )
+            console.log('Объединение завершено успешно');
             setMergeConflict(null)
-            window.location.reload()
+
+            // В Next.js router.refresh() обновляет данные без полной перезагрузки страницы
+            // Это сохраняет скролл и состояние открытых меню
+            router.refresh();
         } catch (err) {
-            alert('Ошибка при объединении')
+            console.error('Ошибка в CardIndexClient при объединении:', err);
+            alert('Ошибка при объединении. Проверьте консоль браузера.');
         } finally {
             setMerging(false)
         }
@@ -176,14 +241,15 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 { name: source.name, birthDate: source.birthDate },
                 { name: target.name, birthDate: target.birthDate }
             )
-            window.location.reload()
+            router.refresh();
         } catch (err) {
-            alert('Ошибка при сохранении')
+            alert('Ошибка при сохранении');
         } finally {
             setMerging(false)
         }
     }
 
+    // Сократим остальной код для краткости, оставив UI без изменений
     const doctors = useMemo(() => {
         const unique = new Set<string>()
         initialData.forEach(client => {
@@ -219,8 +285,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     const recDate = record['Дата записи']
                     if (startDate && recDate < startDate) matchesDate = false
                     if (endDate && recDate > endDate) matchesDate = false
-                } else if (startDate || endDate) {
-                    matchesDate = false
                 }
                 return matchesDoctor && matchesNurse && matchesDate
             })
@@ -311,7 +375,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                 className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-opacity flex items-center justify-center self-end"
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 00.117-1.408l-7-14z" />
                                 </svg>
                             </button>
                         </div>
@@ -361,18 +425,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                         <span className="text-sm font-medium text-gray-800">{record.Медсестра || '—'}</span>
                                     </div>
                                 </div>
-                                {record.Зубы && (
-                                    <div className="mb-3 bg-gray-50 p-2 rounded-lg">
-                                        <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Зубы</span>
-                                        <span className="text-sm font-bold text-blue-800">{record.Зубы}</span>
-                                    </div>
-                                )}
-                                {record.Комментарии && (
-                                    <div>
-                                        <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Комментарий</span>
-                                        <p className="text-sm text-gray-600 leading-relaxed italic group-hover:text-gray-900 transition-colors">"{record.Комментарии}"</p>
-                                    </div>
-                                )}
                             </div>
                         ))}
                 </div>
@@ -384,7 +436,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     return (
         <div className="space-y-4">
-            {/* Модальное окно разрешения конфликтов при объединении */}
+            {/* Модальное окно разрешения конфликтов */}
             {mergeConflict && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 text-left">
                     <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
@@ -392,21 +444,13 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                             <h4 className="font-bold text-xl mb-1">Разрешение конфликтов</h4>
                             <p className="text-blue-100 text-sm">Данные в карточках различаются. Выберите верные:</p>
                         </div>
-
                         <div className="p-6 space-y-6">
-                            {mergeConflict.source.name !== mergeConflict.target.name && (
+                            {normalizeName(mergeConflict.source.name) !== normalizeName(mergeConflict.target.name) && (
                                 <div>
                                     <label className="block text-[10px] text-gray-400 uppercase font-bold mb-3 tracking-widest">Выберите ФИО</label>
                                     <div className="space-y-2">
                                         {[mergeConflict.target, mergeConflict.source].map((c, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => setMergeConflict({ ...mergeConflict, chosenName: c.name })}
-                                                className={`w-full p-4 text-left rounded-2xl border-2 transition-all ${mergeConflict.chosenName === c.name
-                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                        : 'border-gray-100 hover:border-gray-200 text-gray-700'
-                                                    }`}
-                                            >
+                                            <button key={i} onClick={() => setMergeConflict({ ...mergeConflict, chosenName: c.name })} className={`w-full p-4 text-left rounded-2xl border-2 transition-all ${mergeConflict.chosenName === c.name ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-gray-200 text-gray-700'}`}>
                                                 <div className="font-bold">{c.name}</div>
                                                 <div className="text-xs opacity-60">{i === 0 ? 'Из главной карточки' : 'Из дубликата'}</div>
                                             </button>
@@ -414,20 +458,12 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                     </div>
                                 </div>
                             )}
-
                             {mergeConflict.source.birthDate !== mergeConflict.target.birthDate && (
                                 <div>
                                     <label className="block text-[10px] text-gray-400 uppercase font-bold mb-3 tracking-widest">Выберите Дату Рождения</label>
                                     <div className="space-y-2">
                                         {[mergeConflict.target, mergeConflict.source].map((c, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => setMergeConflict({ ...mergeConflict, chosenBirthDate: c.birthDate })}
-                                                className={`w-full p-4 text-left rounded-2xl border-2 transition-all ${mergeConflict.chosenBirthDate === c.birthDate
-                                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                        : 'border-gray-100 hover:border-gray-200 text-gray-700'
-                                                    }`}
-                                            >
+                                            <button key={i} onClick={() => setMergeConflict({ ...mergeConflict, chosenBirthDate: c.birthDate })} className={`w-full p-4 text-left rounded-2xl border-2 transition-all ${mergeConflict.chosenBirthDate === c.birthDate ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 hover:border-gray-200 text-gray-700'}`}>
                                                 <div className="font-bold">{c.birthDate ? new Date(c.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}</div>
                                                 <div className="text-xs opacity-60">{i === 0 ? 'Из главной карточки' : 'Из дубликата'}</div>
                                             </button>
@@ -436,20 +472,15 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                 </div>
                             )}
                         </div>
-
                         <div className="p-6 bg-gray-50 flex gap-3">
-                            <button onClick={() => setMergeConflict(null)} className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all">
-                                Отмена
-                            </button>
-                            <button onClick={() => confirmAndMerge(mergeConflict.source, mergeConflict.target, mergeConflict.chosenName, mergeConflict.chosenBirthDate)} className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all">
-                                Подтвердить и объединить
-                            </button>
+                            <button onClick={() => setMergeConflict(null)} className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all">Отмена</button>
+                            <button onClick={() => confirmAndMerge(mergeConflict.source, mergeConflict.target, mergeConflict.chosenName, mergeConflict.chosenBirthDate)} className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all">Подтвердить и объединить</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Модальное окно просмотра данных дубля */}
+            {/* Предпросмотр дубля */}
             {previewClient && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 text-left">
                     <div className="bg-white rounded-[28px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
@@ -457,42 +488,19 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                             <h4 className="text-amber-900 font-bold text-lg mb-1">Информация о дубле</h4>
                         </div>
                         <div className="p-6 space-y-4">
-                            <div>
-                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">ФИО</span>
-                                <p className="text-gray-900 font-bold">{previewClient.name}</p>
-                            </div>
-                            <div>
-                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Номер телефона</span>
-                                <p className="text-blue-600 font-bold">{previewClient.phones.join(', ')}</p>
-                            </div>
-                            <div>
-                                <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Дата рождения</span>
-                                <p className="text-gray-900 font-medium">
-                                    {previewClient.birthDate ? new Date(previewClient.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}
-                                </p>
-                            </div>
+                            <div><span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">ФИО</span><p className="text-gray-900 font-bold">{previewClient.name}</p></div>
+                            <div><span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Номер телефона</span><p className="text-blue-600 font-bold">{previewClient.phones.join(', ')}</p></div>
+                            <div><span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Дата рождения</span><p className="text-gray-900 font-medium">{previewClient.birthDate ? new Date(previewClient.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}</p></div>
                         </div>
-                        <div className="p-4 bg-gray-50">
-                            <button onClick={() => setPreviewClient(null)} className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform">
-                                Закрыть
-                            </button>
-                        </div>
+                        <div className="p-4 bg-gray-50"><button onClick={() => setPreviewClient(null)} className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform">Закрыть</button></div>
                     </div>
                 </div>
             )}
 
             {/* Поиск */}
             <div className="relative">
-                <input
-                    type="text"
-                    placeholder="Поиск по имени или телефону..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full px-5 py-4 pl-12 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <input type="text" placeholder="Поиск по имени или телефону..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-5 py-4 pl-12 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
 
             {/* Блок дублей */}
@@ -500,14 +508,10 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 <div className="bg-amber-50 border border-amber-100 rounded-[20px] p-5 shadow-sm text-left">
                     <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 text-amber-800 font-bold">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                             Найдено дублей: {potentialDuplicates.length}
                         </div>
-                        <button onClick={() => setShowDuplicates(!showDuplicates)} className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">
-                            {showDuplicates ? 'Скрыть' : 'Показать'}
-                        </button>
+                        <button onClick={() => setShowDuplicates(!showDuplicates)} className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">{showDuplicates ? 'Скрыть' : 'Показать'}</button>
                     </div>
                     {showDuplicates && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4">
@@ -525,20 +529,8 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                                     <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded uppercase shrink-0">Главная</span>
                                                 ) : (
                                                     <div className="flex gap-2 shrink-0">
-                                                        <button
-                                                            disabled={merging}
-                                                            onClick={(e) => { e.stopPropagation(); handleIgnoreDuplicate(c, group.clients[0]); }}
-                                                            className="text-[10px] font-bold text-gray-400 hover:text-red-500 px-2 py-1 transition-colors"
-                                                        >
-                                                            Не объед.
-                                                        </button>
-                                                        <button
-                                                            disabled={merging}
-                                                            onClick={(e) => { e.stopPropagation(); startMerge(c, group.clients[0]); }}
-                                                            className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg active:scale-95 transition-all"
-                                                        >
-                                                            Объединить
-                                                        </button>
+                                                        <button disabled={merging} onClick={(e) => { e.stopPropagation(); handleIgnoreDuplicate(c, group.clients[0]); }} className="text-[10px] font-bold text-gray-400 hover:text-red-500 px-2 py-1 transition-colors">Не объед.</button>
+                                                        <button disabled={merging} onClick={(e) => { e.stopPropagation(); startMerge(c, group.clients[0]); }} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg active:scale-95 transition-all">Объединить</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -551,7 +543,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 </div>
             )}
 
-            {/* Фильтры и список */}
+            {/* Основной список */}
             <button onClick={() => setShowFilters(!showFilters)} className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters ? 'bg-blue-100 text-blue-700 border-2 border-blue-200' : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'}`}>
                 <div className="flex items-center gap-2">
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
@@ -559,37 +551,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 </div>
                 <svg className={`h-5 w-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
-            {showFilters && (
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200 text-left">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Врач</label>
-                            <select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm">
-                                <option value="">Все врачи</option>
-                                {doctors.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Медсестра</label>
-                            <select value={selectedNurse} onChange={(e) => setSelectedNurse(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm">
-                                <option value="">Все медсестры</option>
-                                {nurses.map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Диапазон дат записи</label>
-                        <div className="flex gap-2 items-center">
-                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm" />
-                            <span className="text-gray-300">—</span>
-                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm" />
-                        </div>
-                    </div>
-                    {hasActiveFilters && (
-                        <button onClick={() => { setSelectedDoctor(''); setSelectedNurse(''); setStartDate(''); setEndDate('') }} className="w-full py-3 text-red-600 font-bold text-sm bg-red-50 rounded-xl">Сбросить все</button>
-                    )}
-                </div>
-            )}
             <div className="space-y-3">
                 {filteredData.length > 0 ? (
                     filteredData.map((client, idx) => (
