@@ -691,3 +691,38 @@ export async function updatePatientProfile(
     throw error
   }
 }
+
+/**
+ * Объединяет двух пациентов: переносит все записи от одного к другому
+ */
+export async function mergePatients(
+  source: { name: string, birthDate: string | null },
+  target: { name: string, birthDate: string | null, emoji?: string | null, notes?: string | null }
+): Promise<void> {
+  try {
+    await safeEnsureAnonymousSession()
+
+    // 1. Обновляем все записи source пациента
+    let query = supabase
+      .from('patients')
+      .update({
+        'ФИО': target.name,
+        'Дата рождения пациента': target.birthDate,
+        'emoji': target.emoji,
+        'notes': target.notes
+      })
+      .eq('ФИО', source.name)
+
+    if (source.birthDate) {
+      query = query.eq('Дата рождения пациента', source.birthDate)
+    } else {
+      query = query.is('Дата рождения пациента', null)
+    }
+
+    const { error } = await query
+    if (error) throw error
+  } catch (error) {
+    logger.error('Ошибка при объединении пациентов:', error)
+    throw error
+  }
+}

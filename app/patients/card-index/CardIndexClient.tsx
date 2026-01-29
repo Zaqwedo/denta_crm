@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { PatientData, updatePatientProfile } from '@/lib/supabase-db'
+import { PatientData, updatePatientProfile, mergePatients } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
 
 interface ClientInfo {
@@ -9,7 +9,7 @@ interface ClientInfo {
     birthDate: string | null
     phones: string[]
     emoji: string | null
-    notes: string | null // Общая заметка о пациенте
+    notes: string | null
     records: PatientData[]
 }
 
@@ -21,13 +21,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const [isUpdating, setIsUpdating] = useState(false)
     const [localNotes, setLocalNotes] = useState('')
 
-    // Синхронизация локального состояния комментария при выборе клиента
-    useEffect(() => {
-        if (selectedClient) {
-            setLocalNotes(selectedClient.notes || '')
-        }
-    }, [selectedClient])
-
     // Состояния для фильтров
     const [showFilters, setShowFilters] = useState(false)
     const [selectedDoctor, setSelectedDoctor] = useState('')
@@ -35,13 +28,62 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
 
-    // Уникальные списки врачей и медсестер
+    // Состояния для дублей
+    const [showDuplicates, setShowDuplicates] = useState(false)
+    const [merging, setMerging] = useState(false)
+
+    useEffect(() => {
+        if (selectedClient) {
+            setLocalNotes(selectedClient.notes || '')
+        }
+    }, [selectedClient])
+
+    // Поиск дублей по номеру телефона
+    const potentialDuplicates = useMemo(() => {
+        const phoneMap: Record<string, ClientInfo[]> = {}
+
+        initialData.forEach(client => {
+            client.phones.forEach(phone => {
+                const cleanPhone = phone.replace(/\D/g, '')
+                if (cleanPhone.length >= 10) {
+                    if (!phoneMap[cleanPhone]) phoneMap[cleanPhone] = []
+                    phoneMap[cleanPhone].push(client)
+                }
+            })
+        })
+
+        const duplicateGroups: Array<{ phone: string, clients: ClientInfo[] }> = []
+        Object.entries(phoneMap).forEach(([phone, clients]) => {
+            // Если в группе больше одного уникального клиента (уже сгруппированных по ФИО+ДР)
+            if (clients.length > 1) {
+                duplicateGroups.push({ phone, clients })
+            }
+        })
+        return duplicateGroups
+    }, [initialData])
+
+    const handleMerge = async (source: ClientInfo, target: ClientInfo) => {
+        if (!confirm(`Объединить ${source.name} в карточку ${target.name}? Все записи будут перенесены.`)) return
+
+        setMerging(true)
+        try {
+            await mergePatients(
+                { name: source.name, birthDate: source.birthDate },
+                { name: target.name, birthDate: target.birthDate, emoji: target.emoji || source.emoji, notes: target.notes || source.notes }
+            )
+            // После успешного объединения нужно перезагрузить страницу или обновить локальное состояние
+            window.location.reload()
+        } catch (err) {
+            alert('Ошибка при объединении')
+        } finally {
+            setMerging(false)
+        }
+    }
+
     const doctors = useMemo(() => {
         const unique = new Set<string>()
         initialData.forEach(client => {
-            client.records.forEach(r => {
-                if (r.Доктор) unique.add(r.Доктор)
-            })
+            client.records.forEach(r => { if (r.Доктор) unique.add(r.Доктор) })
         })
         return Array.from(unique).sort()
     }, [initialData])
@@ -49,9 +91,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const nurses = useMemo(() => {
         const unique = new Set<string>()
         initialData.forEach(client => {
-            client.records.forEach(r => {
-                if (r.Медсестра) unique.add(r.Медсестра)
-            })
+            client.records.forEach(r => { if (r.Медсестра) unique.add(r.Медсестра) })
         })
         return Array.from(unique).sort()
     }, [initialData])
@@ -127,14 +167,11 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     Назад к списку
                 </button>
 
-                {/* Блок 1: Основная информация */}
                 <div className="bg-white rounded-[24px] p-6 shadow-sm mb-6 border border-gray-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4">
                         <div className="text-4xl">{selectedClient.emoji}</div>
                     </div>
-
                     <h2 className="text-2xl font-bold text-gray-900 mb-4 pr-12">{selectedClient.name}</h2>
-
                     <div className="space-y-3 mb-6">
                         {selectedClient.birthDate && (
                             <div className="flex items-center text-gray-600">
@@ -144,26 +181,17 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         )}
                         <div className="flex flex-col gap-2">
                             <span className="text-gray-400 font-medium text-sm uppercase tracking-wider">Контакты</span>
-                            {selectedClient.phones.length > 0 ? (
-                                selectedClient.phones.map(phone => (
-                                    <a
-                                        key={phone}
-                                        href={`tel:${phone.replace(/\D/g, '')}`}
-                                        className="text-blue-600 text-lg font-bold flex items-center hover:underline"
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                                        </svg>
-                                        {phone}
-                                    </a>
-                                ))
-                            ) : (
-                                <span className="text-gray-400">Номер не указан</span>
-                            )}
+                            {selectedClient.phones.map(phone => (
+                                <a key={phone} href={`tel:${phone.replace(/\D/g, '')}`} className="text-blue-600 text-lg font-bold flex items-center hover:underline">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+                                    </svg>
+                                    {phone}
+                                </a>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Поле комментария */}
                     <div className="mb-6 pt-4 border-t border-gray-50">
                         <label className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-2">Написать комментарий</label>
                         <div className="flex gap-2">
@@ -185,7 +213,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         </div>
                     </div>
 
-                    {/* Панель выбора смайлика */}
                     <div className="border-t pt-4">
                         <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-3">указать реакцию</span>
                         <div className={`flex justify-between items-center gap-2 ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -193,8 +220,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                 <button
                                     key={emoji}
                                     onClick={() => handleEmojiSelect(emoji)}
-                                    className={`text-2xl p-2 rounded-xl transition-all active:scale-90 ${selectedClient.emoji === emoji ? 'bg-blue-50 ring-2 ring-blue-100 scale-110' : 'hover:bg-gray-50'
-                                        }`}
+                                    className={`text-2xl p-2 rounded-xl transition-all active:scale-90 ${selectedClient.emoji === emoji ? 'bg-blue-50 ring-2 ring-blue-100 scale-110' : 'hover:bg-gray-50'}`}
                                 >
                                     {emoji}
                                 </button>
@@ -203,27 +229,20 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     </div>
                 </div>
 
-                {/* Блок 2: История посещений */}
                 <h3 className="text-xl font-bold text-gray-900 mb-4 px-2">История посещений</h3>
                 <div className="space-y-4">
                     {selectedClient.records
-                        .sort((a, b) => {
-                            const dateA = a['Дата записи'] || ''
-                            const dateB = b['Дата записи'] || ''
-                            return dateB.localeCompare(dateA)
-                        })
+                        .sort((a, b) => (b['Дата записи'] || '').localeCompare(a['Дата записи'] || ''))
                         .map((record, index) => (
                             <div key={record.id || index} className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50">
                                 <div className="flex justify-between items-start mb-3">
                                     <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold">
                                         {record['Дата записи'] ? new Date(record['Дата записи']).toLocaleDateString('ru-RU') : 'Дата не указана'} {record['Время записи'] ? formatTime(record['Время записи']) : ''}
                                     </div>
-                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${record.Статус?.includes('Завершен') ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'
-                                        }`}>
+                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${record.Статус?.includes('Завершен') ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
                                         {record.Статус || 'Ожидает'}
                                     </div>
                                 </div>
-
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Врач</span>
@@ -234,14 +253,12 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                         <span className="text-sm font-medium text-gray-800">{record.Медсестра || '—'}</span>
                                     </div>
                                 </div>
-
                                 {record.Зубы && (
                                     <div className="mb-3 bg-gray-50 p-2 rounded-lg">
                                         <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Зубы</span>
                                         <span className="text-sm font-bold text-blue-800">{record.Зубы}</span>
                                     </div>
                                 )}
-
                                 {record.Комментарии && (
                                     <div>
                                         <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Комментарий</span>
@@ -273,12 +290,62 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 </svg>
             </div>
 
+            {/* Блок дублей */}
+            {potentialDuplicates.length > 0 && (
+                <div className="bg-amber-50 border border-amber-100 rounded-[20px] p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-amber-800 font-bold">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Найдено дублей: {potentialDuplicates.length}
+                        </div>
+                        <button
+                            onClick={() => setShowDuplicates(!showDuplicates)}
+                            className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider"
+                        >
+                            {showDuplicates ? 'Скрыть' : 'Показать'}
+                        </button>
+                    </div>
+                    {showDuplicates && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4">
+                            {potentialDuplicates.map((group, gIdx) => (
+                                <div key={gIdx} className="bg-white rounded-xl p-4 border border-amber-200">
+                                    <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">Номер: {group.phone}</p>
+                                    <div className="space-y-3">
+                                        {group.clients.map((c, cIdx) => (
+                                            <div key={cIdx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                                                <div>
+                                                    <p className="font-bold text-gray-900 text-sm">{c.name}</p>
+                                                    <p className="text-xs text-gray-500">{c.birthDate || 'Без ДР'}</p>
+                                                </div>
+                                                {cIdx === 0 ? (
+                                                    <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded uppercase">Главная</span>
+                                                ) : (
+                                                    <button
+                                                        disabled={merging}
+                                                        onClick={() => handleMerge(c, group.clients[0])}
+                                                        className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1 rounded-lg border border-blue-100 transition-colors disabled:opacity-50"
+                                                    >
+                                                        В главную
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Кнопка фильтров */}
             <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters
-                    ? 'bg-blue-100 text-blue-700 border-2 border-blue-200'
-                    : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'
+                        ? 'bg-blue-100 text-blue-700 border-2 border-blue-200'
+                        : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'
                     }`}
             >
                 <div className="flex items-center gap-2">
@@ -292,84 +359,46 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 </svg>
             </button>
 
-            {/* Панель фильтров */}
             {showFilters && (
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200">
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Врач</label>
-                            <select
-                                value={selectedDoctor}
-                                onChange={(e) => setSelectedDoctor(e.target.value)}
-                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                            >
+                            <select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm">
                                 <option value="">Все врачи</option>
                                 {doctors.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Медсестра</label>
-                            <select
-                                value={selectedNurse}
-                                onChange={(e) => setSelectedNurse(e.target.value)}
-                                className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                            >
+                            <select value={selectedNurse} onChange={(e) => setSelectedNurse(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm">
                                 <option value="">Все медсестры</option>
                                 {nurses.map(n => <option key={n} value={n}>{n}</option>)}
                             </select>
                         </div>
                     </div>
-
                     <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Диапазон дат записи</label>
                         <div className="flex gap-2 items-center">
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                            />
+                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm" />
                             <span className="text-gray-300">—</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                            />
+                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm" />
                         </div>
                     </div>
-
                     {hasActiveFilters && (
-                        <button
-                            onClick={() => {
-                                setSelectedDoctor('')
-                                setSelectedNurse('')
-                                setStartDate('')
-                                setEndDate('')
-                            }}
-                            className="w-full py-3 text-red-600 font-bold text-sm bg-red-50 rounded-xl"
-                        >
-                            Сбросить все
-                        </button>
+                        <button onClick={() => { setSelectedDoctor(''); setSelectedNurse(''); setStartDate(''); setEndDate('') }} className="w-full py-3 text-red-600 font-bold text-sm bg-red-50 rounded-xl">Сбросить все</button>
                     )}
                 </div>
             )}
 
-            {/* Список клиентов */}
             <div className="space-y-3">
                 {filteredData.length > 0 ? (
                     filteredData.map((client, idx) => (
-                        <div
-                            key={idx}
-                            onClick={() => setSelectedClient(client)}
-                            className="bg-white p-5 rounded-[20px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-between items-center group overflow-hidden relative"
-                        >
+                        <div key={idx} onClick={() => setSelectedClient(client)} className="bg-white p-5 rounded-[20px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-between items-center group overflow-hidden relative">
                             <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
                                     {client.emoji && <span className="text-2xl">{client.emoji}</span>}
-                                    <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                        {client.name}
-                                    </h3>
+                                    <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{client.name}</h3>
                                 </div>
                                 <p className="text-sm text-gray-500 font-medium ml-1">
                                     {client.birthDate ? new Date(client.birthDate).toLocaleDateString('ru-RU') : 'Дата рождения не указана'}
@@ -386,9 +415,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                         </div>
                     ))
                 ) : (
-                    <div className="text-center py-12 text-gray-400">
-                        Никто не найден
-                    </div>
+                    <div className="text-center py-12 text-gray-400">Никто не найден</div>
                 )}
             </div>
         </div>
