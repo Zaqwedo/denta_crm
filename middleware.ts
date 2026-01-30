@@ -23,6 +23,16 @@ export async function middleware(request: NextRequest) {
   const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
   if (isProtectedPath) {
+    // Пропускаем проверку для OAuth callback redirects
+    // Cookies будут установлены после редиректа, GoogleAuthHandler обработает авторизацию
+    const isOAuthCallback = request.nextUrl.searchParams.has('google_auth') ||
+      request.nextUrl.searchParams.has('yandex_auth')
+
+    if (isOAuthCallback) {
+      console.log('🔓 Skipping middleware auth check for OAuth callback redirect')
+      return NextResponse.next()
+    }
+
     // Проверяем наличие валидной куки аутентификации
     const authCookie = request.cookies.get('denta_auth')
     const payload = await verifyToken(authCookie?.value)

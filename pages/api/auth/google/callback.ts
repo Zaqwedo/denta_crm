@@ -7,7 +7,7 @@ export default async function handler(
 ) {
   // v2: Move debug to the very top and add console logging
   const { code, error, debug } = req.query
-  
+
   console.log('--- Google Callback v2 ---')
   console.log('Query params:', JSON.stringify(req.query))
 
@@ -18,7 +18,7 @@ export default async function handler(
       baseUrl = `${protocol}://${req.headers.host}`
     }
     const redirectUri = `${baseUrl?.replace(/\/$/, '')}/api/auth/google/callback`
-    
+
     res.status(200).json({
       version: 'v2',
       APP_URL: process.env.APP_URL || 'NOT SET',
@@ -56,7 +56,7 @@ export default async function handler(
     if (!baseUrl) baseUrl = 'http://localhost:3000'
     baseUrl = baseUrl.replace(/\/$/, '')
     const redirectUri = `${baseUrl}/api/auth/google/callback`
-    
+
     // Логируем для отладки
     console.log('🔍 Google OAuth Callback Debug:')
     console.log('  - Code received:', code ? 'yes' : 'no')
@@ -65,13 +65,13 @@ export default async function handler(
     console.log('  - Calculated redirectUri:', redirectUri)
     console.log('  - GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'set' : 'NOT SET')
     console.log('  - GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'set' : 'NOT SET')
-    
+
     // Проверяем наличие необходимых переменных
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       logger.error('Google OAuth credentials not configured')
       return res.redirect('/login?error=google_oauth_not_configured')
     }
-    
+
     // Обмениваем код на токен
     const tokenRequestBody = new URLSearchParams({
       code: code as string,
@@ -80,13 +80,13 @@ export default async function handler(
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     })
-    
+
     console.log('📤 Token exchange request:')
     console.log('  - redirect_uri:', redirectUri)
     console.log('  - client_id:', process.env.GOOGLE_CLIENT_ID ? 'set' : 'NOT SET')
     console.log('  - client_secret:', process.env.GOOGLE_CLIENT_SECRET ? 'set' : 'NOT SET')
     console.log('  - code length:', (code as string)?.length || 0)
-    
+
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
@@ -109,7 +109,7 @@ export default async function handler(
       console.error('  - Error:', tokenData)
       console.error('  - Redirect URI used:', redirectUri)
       console.error('  - Request body:', tokenRequestBody.toString())
-      
+
       // Более детальная ошибка для пользователя
       let errorMessage = 'token_exchange_failed'
       if (tokenData.error === 'invalid_grant') {
@@ -121,7 +121,7 @@ export default async function handler(
       } else if (tokenData.error) {
         errorMessage = `Ошибка Google OAuth: ${tokenData.error}. ${tokenData.error_description || ''}`
       }
-      
+
       return res.redirect(`/login?error=${encodeURIComponent(errorMessage)}`)
     }
 
@@ -139,22 +139,61 @@ export default async function handler(
       return res.redirect('/login?error=user_info_failed')
     }
 
+    // Проверяем whitelist для Google OAuth
+    const userEmail = (userData.email || '').toLowerCase().trim()
+
+    console.log('🔍 Checking Google whitelist for:', userEmail)
+
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data: whitelistData, error: whitelistError } = await supabase
+        .from('whitelist_emails')
+        .select('email')
+        .eq('provider', 'google')
+
+      if (whitelistError) {
+        console.error('❌ Whitelist query error:', whitelistError)
+        logger.error('Whitelist query error:', whitelistError)
+      }
+
+      const allowedEmails = whitelistData?.map(item => item.email.toLowerCase().trim()) || []
+
+      console.log('📋 Google whitelist:', allowedEmails)
+      console.log('✅ User email in whitelist?', allowedEmails.includes(userEmail))
+
+      if (allowedEmails.length > 0 && !allowedEmails.includes(userEmail)) {
+        console.log('❌ Email not in whitelist, redirecting to login')
+        logger.warn('Google OAuth: Email not in whitelist:', userEmail)
+        return res.redirect('/login?error=google_email_not_allowed')
+      }
+
+      console.log('✅ Email allowed, proceeding with login')
+    } catch (error) {
+      console.error('❌ Whitelist check error:', error)
+      logger.error('Whitelist check error:', error)
+      // Продолжаем без проверки whitelist в случае ошибки
+    }
+
     // Устанавливаем HttpOnly cookie
     const COOKIE_MAX_AGE_DAYS = 30
     const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60
-    const userEmail = (userData.email || '').toLowerCase().trim()
 
     let cookieValue = `denta_auth=valid; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       cookieValue += '; Secure'
     }
-    
+
     // Сохраняем email в cookie для фильтрации пациентов
     let emailCookieValue = `denta_user_email=${userEmail}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       emailCookieValue += '; Secure'
     }
-    
+
     // Удаляем admin_auth cookie при входе через Google (если была установлена ранее)
     let adminAuthDeleteCookie = `admin_auth=; HttpOnly; Path=/; Max-Age=0; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
