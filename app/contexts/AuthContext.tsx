@@ -38,25 +38,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authType, setAuthType] = useState<'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null>(null)
   const [allowedEmails, setAllowedEmails] = useState<string[]>([])
 
-  // Загружаем белый список для email авторизации
+  // Загружаем белые списки для ВСЕХ провайдеров (email, google, yandex)
   useEffect(() => {
-    const loadEmailWhitelist = async () => {
+    const loadAllWhitelists = async () => {
       try {
-        const response = await fetch('/api/whitelist?provider=email')
-        if (response.ok) {
-          const data = await response.json()
-          const emails = data.emails || []
-          console.log('Loaded email whitelist:', emails)
-          setAllowedEmails(emails)
-        } else {
-          console.error('Failed to load email whitelist:', response.status, response.statusText)
+        // Загружаем whitelist для всех провайдеров параллельно
+        const [emailRes, googleRes, yandexRes] = await Promise.all([
+          fetch('/api/whitelist?provider=email'),
+          fetch('/api/whitelist?provider=google'),
+          fetch('/api/whitelist?provider=yandex'),
+        ])
+
+        const allEmails = []
+
+        if (emailRes.ok) {
+          const data = await emailRes.json()
+          allEmails.push(...(data.emails || []))
         }
+
+        if (googleRes.ok) {
+          const data = await googleRes.json()
+          allEmails.push(...(data.emails || []))
+        }
+
+        if (yandexRes.ok) {
+          const data = await yandexRes.json()
+          allEmails.push(...(data.emails || []))
+        }
+
+        // Убираем дубликаты
+        const uniqueEmails = [...new Set(allEmails)]
+
+        console.log('Loaded whitelists from all providers:', {
+          email: emailRes.ok,
+          google: googleRes.ok,
+          yandex: yandexRes.ok,
+          total: uniqueEmails.length,
+          emails: uniqueEmails
+        })
+
+        setAllowedEmails(uniqueEmails)
       } catch (error) {
-        console.error('Error loading email whitelist:', error)
+        console.error('Error loading whitelists:', error)
       }
     }
 
-    loadEmailWhitelist()
+    loadAllWhitelists()
   }, [])
 
   useEffect(() => {
@@ -95,23 +122,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = (userData: User, authTypeParam?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
     const finalAuthType = authTypeParam || 'email'
-    
+
     // Проверяем, является ли пользователь админом (по username или first_name)
     const isAdmin = userData.username === 'admin' || userData.first_name === 'Admin'
-    
+
     // Проверка whitelist теперь выполняется на сервере в /api/auth/email-login
     // Здесь оставляем только логирование для отладки
     if (!isAdmin && finalAuthType === 'email' && allowedEmails.length > 0) {
       const userEmail = (userData.username || userData.email || '').toLowerCase().trim()
       const normalizedAllowedEmails = allowedEmails.map(e => e.toLowerCase().trim())
-      
+
       console.log('Client-side email whitelist check (info only):', {
         userEmail,
         allowedEmails: normalizedAllowedEmails,
         isInList: normalizedAllowedEmails.includes(userEmail),
         allowedEmailsCount: normalizedAllowedEmails.length
       })
-      
+
       // Не блокируем на клиенте - проверка уже выполнена на сервере
       // Но логируем для отладки
     }
