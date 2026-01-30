@@ -23,10 +23,10 @@ export const DuplicatesSection: React.FC<DuplicatesSectionProps> = ({
     if (potentialDuplicates.length === 0) return null
 
     return (
-        <div className="mb-8 overflow-hidden rounded-[24px] border border-yellow-200">
+        <div className="mb-8 overflow-hidden rounded-[24px] border border-yellow-200 shadow-sm shadow-yellow-100/50">
             <button
                 onClick={() => setShowDuplicates(!showDuplicates)}
-                className={`w-full p-4 flex items-center justify-between text-left transition-colors ${showDuplicates ? 'bg-yellow-50 text-yellow-800' : 'bg-yellow-100 text-yellow-900'}`}
+                className={`w-full p-4 flex items-center justify-between text-left transition-all outline-none focus:outline-none ring-0 focus:ring-0 ${showDuplicates ? 'bg-yellow-50 text-yellow-800' : 'bg-yellow-100/80 hover:bg-yellow-100 text-yellow-900 focus:bg-yellow-100 active:scale-[0.995]'}`}
             >
                 <div className="flex items-center gap-3">
                     <div className="bg-yellow-400 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold animate-pulse">

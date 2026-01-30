@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { GlobalToast } from './patients/GlobalToast'
 import { AuthProvider } from './contexts/AuthContext'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
+import type { Viewport } from 'next'
 
 export const metadata: Metadata = {
   title: 'Denta CRM',
@@ -15,11 +18,12 @@ export const metadata: Metadata = {
       { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
     ],
   },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({
@@ -33,6 +37,8 @@ export default function RootLayout({
         <AuthProvider>
           {children}
           <GlobalToast />
+          <Analytics />
+          <SpeedInsights />
         </AuthProvider>
       </body>
     </html>

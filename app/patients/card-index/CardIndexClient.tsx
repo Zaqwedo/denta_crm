@@ -6,7 +6,8 @@ import { PatientData, updatePatientProfile, getPatients, addPatient, mergePatien
 import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET, PATIENT_STATUSES } from '@/lib/constants'
 import { handleDeletePatient } from '../actions'
 import { useAuth } from '../../contexts/AuthContext'
-import { List } from 'react-window'
+import { List, RowComponentProps } from 'react-window'
+import { useDebounce } from 'use-debounce'
 import { ClientInfo } from './types'
 import { ClientCard } from './components/ClientCard'
 import { FiltersPanel } from './components/FiltersPanel'
@@ -26,6 +27,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const router = useRouter()
     const { user } = useAuth()
     const [searchTerm, setSearchTerm] = useState('')
+    const [debouncedSearchTerm] = useDebounce(searchTerm, 300)
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
     const [localNotes, setLocalNotes] = useState('')
     const [showFilters, setShowFilters] = useState(false)
@@ -103,9 +105,9 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const filteredData = useMemo(() => {
         return initialData.filter(client => {
             // Поиск по ФИО или телефону
-            const matchesSearch = searchTerm === '' ||
-                client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                client.phones.some(p => p.includes(searchTerm))
+            const matchesSearch = debouncedSearchTerm === '' ||
+                client.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                client.phones.some(p => p.includes(debouncedSearchTerm))
 
             if (!matchesSearch) return false
 
@@ -126,7 +128,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
             return hasDoctor && hasNurse && matchesDate
         }).sort((a, b) => a.name.localeCompare(b.name))
-    }, [initialData, searchTerm, selectedDoctor, selectedNurse, startDate, endDate])
+    }, [initialData, debouncedSearchTerm, selectedDoctor, selectedNurse, startDate, endDate])
 
     const doctors = useMemo(() => {
         const set = new Set<string>()
@@ -338,23 +340,24 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 hasActiveFilters={hasActiveFilters}
             />
 
-            <div className="min-h-[600px]">
+            <div className="min-h-[600px] bg-gray-50/50 rounded-[32px] p-2 border border-gray-100/50">
                 {filteredData.length > 0 ? (
                     <List
                         rowCount={filteredData.length}
                         rowHeight={135}
-                        style={{ height: 800, width: '100%' }}
-                        rowProps={{}}
-                        rowComponent={({ index, style }) => {
-                            return (
-                                <div style={{ ...style, paddingBottom: '12px' }}>
-                                    <ClientCard
-                                        client={filteredData[index]}
-                                        onClick={setSelectedClient}
-                                    />
-                                </div>
-                            )
-                        }}
+                        style={{ height: 600, width: '100%' }}
+                        rowProps={{ onClick: setSelectedClient, data: filteredData }}
+                        rowComponent={({ index, style, onClick, data }: RowComponentProps<{
+                            onClick: (client: ClientInfo) => void,
+                            data: ClientInfo[]
+                        }>) => (
+                            <div style={{ ...style, padding: '0 4px 12px 4px' }}>
+                                <ClientCard
+                                    client={data[index]}
+                                    onClick={onClick}
+                                />
+                            </div>
+                        )}
                     />
                 ) : (
                     <div className="text-center py-12 text-gray-400 font-bold bg-white rounded-2xl border-2 border-dashed border-gray-100 italic">
