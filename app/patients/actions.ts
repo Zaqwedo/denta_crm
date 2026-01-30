@@ -64,7 +64,8 @@ export async function handleRevertChanges(patientId: string, userEmail: string) 
       if (dbCol) {
         // Восстанавливаем старое значение
         // Важно: если old_value null, передаем null/undefined
-        updateData[dbCol as keyof PatientData] = change.old_value || undefined;
+        // Используем as any, чтобы избежать ошибки TS при присваивании string в потенциально boolean поля (хотя в маппинге только строки)
+        updateData[dbCol as keyof PatientData] = (change.old_value || undefined) as any;
         revertCount++;
       }
     }
