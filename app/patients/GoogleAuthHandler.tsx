@@ -44,7 +44,7 @@ export function GoogleAuthHandler() {
 
   useEffect(() => {
     if (!searchParams) return
-    
+
     const googleAuth = searchParams.get('google_auth')
     const userParam = searchParams.get('user')
 
@@ -54,15 +54,9 @@ export function GoogleAuthHandler() {
           console.log('🔄 GoogleAuthHandler: Начинаю обработку данных пользователя')
           const userData = JSON.parse(userParam)
 
-          // Проверяем разрешенные email для Google
-          const userEmail = userData.email || userData.username
-          if (allowedGoogleEmails.length > 0 && !allowedGoogleEmails.includes(userEmail)) {
-            console.error('❌ GoogleAuthHandler: Email не в списке разрешенных:', userEmail)
-            // Перенаправляем на login с ошибкой
-            window.location.href = '/login?error=google_email_not_allowed'
-            return
-          }
-          
+          // Проверка whitelist выполняется на сервере в /api/auth/google/callback
+          // Если пользователь дошел до этой точки, значит сервер его пропустил
+
           // Устанавливаем сессию Supabase для RLS
           await supabase.auth.signInAnonymously({
             options: {
@@ -83,13 +77,13 @@ export function GoogleAuthHandler() {
           }, 'google')
 
           console.log('✅ GoogleAuthHandler: Логин выполнен, очищаю URL')
-          
+
           // Очищаем URL через window.history, чтобы не дергать лишний раз роутер
           const url = new URL(window.location.href)
           url.searchParams.delete('google_auth')
           url.searchParams.delete('user')
           window.history.replaceState({}, '', url.pathname)
-          
+
           // Принудительно обновляем роутер через небольшой таймаут
           setTimeout(() => {
             router.refresh()
@@ -113,19 +107,9 @@ export function GoogleAuthHandler() {
           const userData = JSON.parse(yandexUserParam)
           console.log('🔄 YandexAuthHandler: userData:', userData)
 
-          // Проверяем разрешенные email для Yandex
-          const userEmail = userData.email || userData.username
-          console.log('🔄 YandexAuthHandler: userEmail:', userEmail)
-          console.log('🔄 YandexAuthHandler: allowedYandexEmails:', allowedYandexEmails)
-          
-          if (allowedYandexEmails.length > 0 && !allowedYandexEmails.includes(userEmail)) {
-            console.error('❌ YandexAuthHandler: Email не в списке разрешенных:', userEmail)
-            // Перенаправляем на login с ошибкой
-            window.location.href = '/login?error=yandex_email_not_allowed'
-            return
-          }
-          
-          console.log('✅ YandexAuthHandler: Email разрешен, продолжаем авторизацию')
+          // Проверка whitelist выполняется на сервере в /api/auth/yandex/callback
+          // Если пользователь дошел до этой точки, значит сервер его пропустил
+          console.log('✅ YandexAuthHandler: Продолжаем авторизацию')
 
           // Устанавливаем сессию Supabase для RLS
           await supabase.auth.signInAnonymously({
@@ -164,7 +148,7 @@ export function GoogleAuthHandler() {
 
       handleYandexAuth()
     }
-  }, [searchParams, login, router, allowedGoogleEmails, allowedYandexEmails])
+  }, [searchParams, login, router])  // УДАЛЕНЫ allowedGoogleEmails, allowedYandexEmails - они вызывают повторный запуск после очистки URL
 
   return null
 }
