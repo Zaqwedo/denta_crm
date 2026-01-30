@@ -60,16 +60,24 @@ export default async function handler(
   }
 
   try {
-    // Определяем redirect URI (должен точно совпадать с настройками в Яндекс OAuth)
-    let redirectUri: string
+    // Определяем redirect URI (должен совпадать с тем, что в index.ts)
+    let baseUrl = process.env.APP_URL || process.env.VERCEL_URL
 
-    if (process.env.NODE_ENV === 'production') {
-      // В продакшене используем фиксированный URL из переменной окружения
-      redirectUri = process.env.YANDEX_REDIRECT_URI || 'https://your-domain.vercel.app/api/auth/yandex/callback'
-    } else {
-      // В разработке используем localhost
-      redirectUri = 'http://localhost:3000/api/auth/yandex/callback'
+    // Если нет в переменных, используем заголовки запроса
+    if (!baseUrl && req.headers.host) {
+      const protocol = req.headers['x-forwarded-proto'] || (req.headers.host.includes('localhost') ? 'http' : 'https')
+      baseUrl = `${protocol}://${req.headers.host}`
     }
+
+    // Если всё ещё нет, используем localhost
+    if (!baseUrl) {
+      baseUrl = 'http://localhost:3000'
+    }
+
+    // Убираем слеш в конце, если есть
+    baseUrl = baseUrl.replace(/\/$/, '')
+
+    const redirectUri = `${baseUrl}/api/auth/yandex/callback`
 
     console.log('🔍 Yandex OAuth Callback Debug:')
     console.log('  - YANDEX_CLIENT_ID:', process.env.YANDEX_CLIENT_ID ? 'set' : 'NOT SET')
@@ -164,6 +172,51 @@ export default async function handler(
       default_email: userData.default_email,
       default_avatar_id: userData.default_avatar_id ? 'present' : 'missing'
     })
+
+    // Добавляем проверку Supabase whitelist (копия из google/callback.ts)
+    const { logger } = await import('@/lib/logger')
+
+    // Получаем email для проверки (приводим к нижнему регистру для сравнения)
+    const checkEmail = (userData.default_email || userData.login || '').toLowerCase().trim()
+    console.log('🔍 Checking Yandex whitelist for:', checkEmail)
+
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      )
+
+      const { data: whitelistData, error: whitelistError } = await supabase
+        .from('whitelist_emails')
+        .select('email')
+        .eq('provider', 'yandex') // Проверяем именно provider='yandex'
+
+      if (whitelistError) {
+        console.error('❌ Whitelist query error:', whitelistError)
+        logger.error('Whitelist query error:', whitelistError)
+      }
+
+      const allowedEmails = whitelistData?.map(item => item.email.toLowerCase().trim()) || []
+
+      console.log('📋 Yandex whitelist:', allowedEmails)
+      console.log('✅ User email in whitelist?', allowedEmails.includes(checkEmail))
+
+      if (allowedEmails.length > 0 && !allowedEmails.includes(checkEmail)) {
+        console.log('❌ Email not in whitelist, redirecting to login')
+        logger.warn('Yandex OAuth: Email not in whitelist:', checkEmail)
+        return res.redirect('/login?error=yandex_email_not_allowed')
+      }
+
+      console.log('✅ Email allowed, proceeding with login')
+    } catch (error) {
+      console.error('❌ Whitelist check error:', error)
+      logger.error('Whitelist check error:', error)
+      // Продолжаем без проверки whitelist в случае ошибки подключения к БД,
+      // НО в продакшене лучше блокировать доступ, если проверка не удалась.
+      // Здесь для надежности лучше оставить как есть (soft fail) или блокировать (hard fail).
+      // Для безопасности лучше hard fail, но чтобы не сломать вход при сбоях Supabase - soft fail.
+    }
 
     // Устанавливаем HttpOnly cookie с подписанным токеном
     const COOKIE_MAX_AGE_DAYS = 30

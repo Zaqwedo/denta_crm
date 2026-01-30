@@ -12,15 +12,23 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Определяем redirect URI (должен точно совпадать с настройками в Яндекс OAuth)
-  let redirectUri: string
+  let baseUrl = process.env.APP_URL || process.env.VERCEL_URL
 
-  if (process.env.NODE_ENV === 'production') {
-    // В продакшене используем фиксированный URL из переменной окружения
-    redirectUri = process.env.YANDEX_REDIRECT_URI || 'https://your-domain.vercel.app/api/auth/yandex/callback'
-  } else {
-    // В разработке используем localhost
-    redirectUri = 'http://localhost:3000/api/auth/yandex/callback'
+  // Если нет в переменных, используем заголовки запроса
+  if (!baseUrl && req.headers.host) {
+    const protocol = req.headers['x-forwarded-proto'] || (req.headers.host.includes('localhost') ? 'http' : 'https')
+    baseUrl = `${protocol}://${req.headers.host}`
   }
+
+  // Если всё ещё нет, используем localhost
+  if (!baseUrl) {
+    baseUrl = 'http://localhost:3000'
+  }
+
+  // Убираем слеш в конце, если есть
+  baseUrl = baseUrl.replace(/\/$/, '')
+
+  const redirectUri = `${baseUrl}/api/auth/yandex/callback`
 
   console.log('🔍 Yandex OAuth Debug:')
   console.log('  - YANDEX_CLIENT_ID:', process.env.YANDEX_CLIENT_ID ? 'set' : 'NOT SET')
@@ -31,13 +39,13 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     redirect_uri: redirectUri,
     response_type: 'code',
   })
-  
+
   // Scope можно указать через переменную окружения YANDEX_OAUTH_SCOPE
   // Если scope не указан, Yandex использует те, что настроены при регистрации приложения
   // ВАЖНО: Если в настройках приложения scope включены, лучше НЕ указывать их явно в запросе
   // Это позволит Yandex использовать scope из настроек приложения автоматически
   const requestedScope = process.env.YANDEX_OAUTH_SCOPE
-  
+
   if (requestedScope && requestedScope.trim() !== '') {
     // Если scope указан явно, используем его (формат: "login:email login:info" через пробел)
     params.append('scope', requestedScope.trim())
