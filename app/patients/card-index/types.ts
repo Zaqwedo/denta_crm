@@ -9,3 +9,13 @@ export interface ClientInfo {
     ignoredIds: string[]
     records: PatientData[]
 }
+
+export interface NewRecord {
+    date: string
+    time: string
+    doctor: string
+    nurse: string
+    teeth: string
+    notes: string
+    status: string
+}

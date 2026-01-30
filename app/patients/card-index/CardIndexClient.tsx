@@ -10,11 +10,21 @@ import { List, RowComponentProps } from 'react-window'
 import { useDebounce } from 'use-debounce'
 import useSWR, { mutate } from 'swr'
 import { handleGetGroupedPatients } from '../actions'
-import { ClientInfo } from './types'
+import { ClientInfo, NewRecord } from './types'
 import { ClientCard } from './components/ClientCard'
-import { FiltersPanel } from './components/FiltersPanel'
-import { DuplicatesSection } from './components/DuplicatesSection'
-import { ClientDetails } from './components/ClientDetails'
+import dynamic from 'next/dynamic'
+import { Header } from '../../components/Header'
+
+const DuplicatesSection = dynamic(() => import('./components/DuplicatesSection').then(mod => mod.DuplicatesSection), {
+    loading: () => <div className="h-10 animate-pulse bg-gray-100 rounded-2xl mb-6" />
+})
+const FiltersPanel = dynamic(() => import('./components/FiltersPanel').then(mod => mod.FiltersPanel), {
+    loading: () => <div className="h-10 animate-pulse bg-gray-100 rounded-2xl mb-6" />
+})
+const ClientDetails = dynamic(() => import('./components/ClientDetails').then(mod => mod.ClientDetails), {
+    loading: () => <div className="flex items-center justify-center p-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+})
+import { findPotentialDuplicates } from '@/lib/patient-utils'
 
 const logger = {
     log: (...args: any[]) => console.log(...args),
@@ -52,7 +62,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
     const [isAddingRecord, setIsAddingRecord] = useState(false)
-    const [newRecord, setNewRecord] = useState({
+    const [newRecord, setNewRecord] = useState<NewRecord>({
         date: new Date().toISOString().split('T')[0],
         time: '',
         doctor: '',
@@ -83,38 +93,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     // Поиск потенциальных дублей (одинаковые телефоны, но разные ФИО/ДР)
     const potentialDuplicates = useMemo(() => {
-        const phoneToClients = new Map<string, ClientInfo[]>()
-
-        data.forEach(client => {
-            client.phones.forEach(phone => {
-                const cleaned = phone.replace(/\D/g, '')
-                if (cleaned.length >= 10) {
-                    if (!phoneToClients.has(cleaned)) phoneToClients.set(cleaned, [])
-                    phoneToClients.get(cleaned)!.push(client)
-                }
-            })
-        })
-
-        const groups: Array<{ label: string, clients: ClientInfo[] }> = []
-        phoneToClients.forEach((groupClients, phone) => {
-            const unique = Array.from(new Set(groupClients))
-            if (unique.length > 1) {
-                // Проверяем, не игнорировали ли мы уже эту пару
-                const filtered = unique.filter((c, idx) => {
-                    const others = unique.filter((_, i) => i !== idx)
-                    return !others.some(other => {
-                        const pairId = [`${c.name}|${c.birthDate || ''}`, `${other.name}|${other.birthDate || ''}`].sort().join(':::')
-                        return c.ignoredIds.includes(pairId) || other.ignoredIds.includes(pairId)
-                    })
-                })
-
-                if (filtered.length > 1) {
-                    groups.push({ label: `Телефон: ${phone}`, clients: filtered })
-                }
-            }
-        })
-
-        return groups
+        return findPotentialDuplicates(data)
     }, [data])
 
     // Фильтрация
@@ -345,6 +324,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     return (
         <div className="max-w-4xl mx-auto pb-32">
+            <Header title="Картотека" subtitle="Список всех пациентов и их история" />
             {swrError && (
                 <div className="bg-red-50 text-red-600 p-4 rounded-2xl mb-4 text-sm font-bold flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

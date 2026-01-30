@@ -1,5 +1,11 @@
-import { redirect } from 'next/navigation'
+import DashboardClient from './DashboardClient'
+import { GoogleAuthHandler } from './patients/GoogleAuthHandler'
 
 export default function HomePage() {
-  redirect('/patients')
+  return (
+    <>
+      <GoogleAuthHandler />
+      <DashboardClient />
+    </>
+  )
 }

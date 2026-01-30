@@ -1,8 +1,12 @@
 import React from 'react'
 import Link from 'next/link'
-import { ClientInfo } from '../types'
+import { ClientInfo, NewRecord } from '../types'
 import { EMOJI_SET, DB_COLUMNS } from '@/lib/constants'
-import { AddRecordModal } from './AddRecordModal'
+import dynamic from 'next/dynamic'
+
+const AddRecordModal = dynamic(() => import('./AddRecordModal').then(mod => mod.AddRecordModal), {
+    loading: () => <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[100] flex items-center justify-center"><div className="bg-white p-8 rounded-[32px] animate-pulse w-full max-w-lg h-64" /></div>
+})
 
 interface ClientDetailsProps {
     selectedClient: ClientInfo
@@ -15,16 +19,8 @@ interface ClientDetailsProps {
     setLocalNotes: (notes: string) => void
     isAddingRecord: boolean
     setIsAddingRecord: (show: boolean) => void
-    newRecord: {
-        date: string
-        time: string
-        doctor: string
-        nurse: string
-        teeth: string
-        notes: string
-        status: string
-    }
-    setNewRecord: (record: any) => void
+    newRecord: NewRecord
+    setNewRecord: (record: NewRecord) => void
     doctors: string[]
     nurses: string[]
     handleAddRecord: () => Promise<void>

@@ -7,6 +7,7 @@ import { formatTime } from '@/lib/utils'
 import { SegmentedControl } from './SegmentedControl'
 import { DayView } from './DayView'
 import { MonthView } from './MonthView'
+import { Header } from '../components/Header'
 
 // Компонент недельного вида календаря
 function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[], selectedDate: Date, onDateChange: (date: Date) => void }) {
@@ -95,11 +96,11 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
     const startMin = parseInt(minutes) || 0
     const endHour = startHour
     const endMin = startMin + 30 // Предполагаем 30 минут длительность
-    
+
     const formatTimeLocal = (h: number, m: number) => {
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
     }
-    
+
     return `${formatTimeLocal(startHour, startMin)} - ${formatTimeLocal(endHour, endMin >= 60 ? endMin - 60 : endMin)}`
   }
 
@@ -119,152 +120,149 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-10">
           <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-3">
-            <button
-              onClick={() => navigateWeek('prev')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors font-medium text-gray-700"
-            >
-              <ChevronLeftIcon size={20} />
-              <span className="hidden sm:inline">Предыдущая</span>
-            </button>
-            <div className="text-center">
-              <h1 className="text-lg font-semibold text-gray-900">
-              {weekDays[0].toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
-            </h1>
-              <p className="text-xs text-gray-500 mt-0.5">{weekRange}</p>
-            </div>
-            <button
-              onClick={() => navigateWeek('next')}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors font-medium text-gray-700"
-            >
-              <span className="hidden sm:inline">Следующая</span>
-              <ChevronRightIcon size={20} />
-            </button>
-          </div>
-
-          {/* Navigation buttons */}
-          <div className="flex items-center justify-center mb-3">
-            <button
-              onClick={goToToday}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                isCurrentWeek
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Сегодня
-            </button>
-          </div>
-
-          {/* Days of week selector */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {weekDays.map((day, index) => {
-              const dayDate = new Date(day)
-              dayDate.setHours(0, 0, 0, 0)
-              const todayCheck = new Date()
-              todayCheck.setHours(0, 0, 0, 0)
-              const isToday = dayDate.getTime() === todayCheck.getTime()
-              const isSelected = dayDate.getTime() === selectedDate.getTime()
-              
-              return (
-                <button
-                  key={index}
-                  onClick={() => onDateChange(day)}
-                  className={`flex-shrink-0 flex flex-col items-center justify-center min-w-[50px] py-2 px-3 rounded-lg transition-colors ${
-                    isToday 
-                      ? 'bg-gray-900 text-white' 
-                      : isSelected
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'bg-transparent text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="text-xs font-medium mb-1">
-                    {['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'][index]}
-                  </div>
-                  <div className={`text-lg font-bold ${
-                    isToday ? 'text-white' : 'text-gray-900'
-                }`}>
-                    {day.getDate()}
-                </div>
-                </button>
-              )
-            })}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={() => navigateWeek('prev')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors font-medium text-gray-700"
+              >
+                <ChevronLeftIcon size={20} />
+                <span className="hidden sm:inline">Предыдущая</span>
+              </button>
+              <div className="text-center">
+                <h1 className="text-lg font-semibold text-gray-900">
+                  {weekDays[0].toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' })}
+                </h1>
+                <p className="text-xs text-gray-500 mt-0.5">{weekRange}</p>
               </div>
+              <button
+                onClick={() => navigateWeek('next')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 active:bg-gray-300 transition-colors font-medium text-gray-700"
+              >
+                <span className="hidden sm:inline">Следующая</span>
+                <ChevronRightIcon size={20} />
+              </button>
+            </div>
+
+            {/* Navigation buttons */}
+            <div className="flex items-center justify-center mb-3">
+              <button
+                onClick={goToToday}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+              >
+                Сегодня
+              </button>
+            </div>
+
+            {/* Days of week selector */}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {weekDays.map((day, index) => {
+                const dayDate = new Date(day)
+                dayDate.setHours(0, 0, 0, 0)
+                const todayCheck = new Date()
+                todayCheck.setHours(0, 0, 0, 0)
+                const isToday = dayDate.getTime() === todayCheck.getTime()
+                const isSelected = dayDate.getTime() === selectedDate.getTime()
+
+                return (
+                  <button
+                    key={index}
+                    onClick={() => onDateChange(day)}
+                    className={`flex-shrink-0 flex flex-col items-center justify-center min-w-[50px] py-2 px-3 rounded-lg transition-colors ${isToday
+                        ? 'bg-gray-900 text-white'
+                        : isSelected
+                          ? 'bg-gray-100 text-gray-900'
+                          : 'bg-transparent text-gray-600 hover:bg-gray-50'
+                      }`}
+                  >
+                    <div className="text-xs font-medium mb-1">
+                      {['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'][index]}
+                    </div>
+                    <div className={`text-lg font-bold ${isToday ? 'text-white' : 'text-gray-900'
+                      }`}>
+                      {day.getDate()}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
 
         {/* Week Schedule List */}
         <div className="px-4 py-4">
           <div className="max-w-4xl mx-auto">
-          {weekDays.map((day, dayIndex) => {
-            const dayPatients = getPatientsForDay(day)
-            const dayDate = new Date(day)
-            dayDate.setHours(0, 0, 0, 0)
-            const todayCheck = new Date()
-            todayCheck.setHours(0, 0, 0, 0)
-            const isToday = dayDate.getTime() === todayCheck.getTime()
-            
-            if (dayPatients.length === 0) {
-              return null // Не показываем дни без записей
-            }
+            {weekDays.map((day, dayIndex) => {
+              const dayPatients = getPatientsForDay(day)
+              const dayDate = new Date(day)
+              dayDate.setHours(0, 0, 0, 0)
+              const todayCheck = new Date()
+              todayCheck.setHours(0, 0, 0, 0)
+              const isToday = dayDate.getTime() === todayCheck.getTime()
 
-            return (
-              <div key={dayIndex} className="mb-6">
-                {/* Day Header */}
-                <div className="mb-3">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    {day.getDate()} {day.toLocaleDateString('ru-RU', { month: 'long' })}, {getDayName(day)}
-                  </h2>
-                  {isToday && (
-                    <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-                      Сегодня
-                    </span>
-                  )}
+              if (dayPatients.length === 0) {
+                return null // Не показываем дни без записей
+              }
+
+              return (
+                <div key={dayIndex} className="mb-6">
+                  {/* Day Header */}
+                  <div className="mb-3">
+                    <h2 className="text-base font-semibold text-gray-900">
+                      {day.getDate()} {day.toLocaleDateString('ru-RU', { month: 'long' })}, {getDayName(day)}
+                    </h2>
+                    {isToday && (
+                      <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                        Сегодня
+                      </span>
+                    )}
                   </div>
 
-                {/* Patients List for this day */}
-                <div className="space-y-3">
-                  {dayPatients.map((patient) => {
-                    const timeRange = formatTimeRange(patient.time)
-                    return (
-                            <div
-                              key={patient.id}
-                        onClick={() => router.push(`/patients/${patient.id}`)}
-                        className="flex items-start gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.98]"
-                      >
-                        {/* Color line */}
-                        <div className={`w-1 h-full min-h-[60px] rounded-full ${getStatusColorLine(patient.status)}`}></div>
-                        
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-600 mb-1">
-                            {timeRange}
-                          </div>
-                          <div className="text-base font-semibold text-gray-900">
-                            {patient.name}
-                          </div>
-                          {patient.doctor && (
-                            <div className="text-sm text-gray-600 mt-1">
-                              {patient.doctor}
+                  {/* Patients List for this day */}
+                  <div className="space-y-3">
+                    {dayPatients.map((patient) => {
+                      const timeRange = formatTimeRange(patient.time)
+                      return (
+                        <div
+                          key={patient.id}
+                          onClick={() => router.push(`/patients/${patient.id}`)}
+                          className="flex items-start gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.98]"
+                        >
+                          {/* Color line */}
+                          <div className={`w-1 h-full min-h-[60px] rounded-full ${getStatusColorLine(patient.status)}`}></div>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-gray-600 mb-1">
+                              {timeRange}
                             </div>
-                          )}
+                            <div className="text-base font-semibold text-gray-900">
+                              {patient.name}
+                            </div>
+                            {patient.doctor && (
+                              <div className="text-sm text-gray-600 mt-1">
+                                {patient.doctor}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
+              )
+            })}
+
+            {/* Empty state if no appointments in week */}
+            {weekDays.every(day => getPatientsForDay(day).length === 0) && (
+              <div className="text-center py-12">
+                <div className="text-gray-400 text-4xl mb-4">📅</div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет записей</h3>
+                <p className="text-gray-600">На эту неделю нет запланированных приемов</p>
               </div>
-            )
-          })}
-          
-          {/* Empty state if no appointments in week */}
-          {weekDays.every(day => getPatientsForDay(day).length === 0) && (
-            <div className="text-center py-12">
-              <div className="text-gray-400 text-4xl mb-4">📅</div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет записей</h3>
-              <p className="text-gray-600">На эту неделю нет запланированных приемов</p>
-            </div>
-          )}
+            )}
           </div>
         </div>
       </div>
@@ -370,7 +368,10 @@ export function CalendarView() {
   }
 
   return (
-    <div className="pb-20">
+    <div className="pb-8">
+      <div className="max-w-4xl mx-auto px-4 pt-4">
+        <Header title="Календарь" />
+      </div>
       {/* Header with Segmented Control */}
       <div className="bg-white/80 backdrop-blur-xl border-b border-gray-200 px-4 py-4 shadow-sm">
         <div className="flex justify-center mb-4">

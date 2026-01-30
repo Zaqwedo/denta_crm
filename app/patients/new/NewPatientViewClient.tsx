@@ -4,10 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { handleAddPatient } from '../actions'
 import { useAuth } from '../../contexts/AuthContext'
-import { TabBar } from '../TabBar'
 import { ProtectedRoute } from '../../components/ProtectedRoute'
 import { PATIENT_STATUSES } from '../../../lib/constants'
 import { useConstants } from '../../hooks/useConstants'
+import { Header } from '../../components/Header'
 
 // Функция для форматирования телефона с маской
 function formatPhone(value: string): string {
@@ -186,21 +186,10 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
     <ProtectedRoute>
       <div className="min-h-screen bg-[#f2f2f7] pb-24" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
         <div className="max-w-md mx-auto px-4 py-6">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => router.back()}
-              className="p-2 -ml-2 text-gray-600 hover:text-gray-900"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Новая запись
-            </h1>
-            <div className="w-10"></div> {/* Spacer для центрирования */}
-          </div>
+          <Header
+            title="Новая запись"
+            onBack={() => router.back()}
+          />
 
           {/* Form */}
           <form
@@ -410,7 +399,6 @@ export function NewPatientViewClient({ initialDate }: NewPatientViewClientProps)
           </div>
         </div>
       </div>
-      <TabBar />
     </ProtectedRoute>
   )
 }

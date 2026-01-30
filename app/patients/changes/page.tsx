@@ -1,10 +1,10 @@
 // app/patients/changes/page.tsx
 import { getChangedPatients } from '@/lib/supabase-db'
-import { TabBar } from '../TabBar'
 import { ProtectedRoute } from '../../components/ProtectedRoute'
 import { GoogleAuthHandler } from '../GoogleAuthHandler'
 import { logger } from '@/lib/logger'
 import { PatientChangesList } from './PatientChangesList'
+import { Header } from '../../components/Header'
 
 export const revalidate = 60
 
@@ -76,15 +76,7 @@ function ChangesPageContent({
   return (
     <div className="min-h-screen bg-[#f2f2f7]" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
       <div className="max-w-md mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Изменения
-          </h1>
-          <p className="text-lg text-gray-600">
-            Записи, которые были изменены
-          </p>
-        </div>
+        <Header title="Изменения" subtitle="Записи, которые были изменены" />
 
         {error ? (
           <div className="bg-white rounded-2xl p-8 shadow-sm">
@@ -144,9 +136,6 @@ function ChangesPageContent({
           </div>
         )}
       </div>
-
-      {/* Tab Bar */}
-      <TabBar />
     </div>
   )
 }

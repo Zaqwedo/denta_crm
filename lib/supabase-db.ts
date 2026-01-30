@@ -885,3 +885,26 @@ export async function restorePatient(patientId: string): Promise<void> {
     throw error;
   }
 }
+
+/**
+ * Обновляет профиль пользователя
+ */
+export async function updateUserProfile(email: string, firstName: string, lastName?: string): Promise<void> {
+  try {
+    const adminClient = getSupabaseAdmin()
+    const { error } = await adminClient
+      .from('users')
+      .update({
+        first_name: firstName,
+        last_name: lastName,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', email.toLowerCase().trim())
+
+    if (error) throw error
+  } catch (error) {
+    logger.error('Ошибка при обновлении профиля пользователя:', error)
+    throw error
+  }
+}
+

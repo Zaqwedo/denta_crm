@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Header } from '@/app/components/Header'
 
 interface WhitelistEmail {
   id: number
@@ -412,31 +413,11 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-[#f2f2f7] py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-          <button
-            onClick={() => router.push('/patients')}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all mb-4"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Назад к списку пациентов
-          </button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Админ-панель</h1>
-            <p className="text-gray-600">Управление данными приложения</p>
-          </div>
-        </div>
+        <Header
+          title="Админ-панель"
+          subtitle="Управление данными приложения"
+          onBack={() => router.push('/patients')}
+        />
 
         {/* Messages */}
         {error && (

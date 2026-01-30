@@ -217,7 +217,7 @@ export default async function handler(
 
     // Сохраняем данные пользователя в query параметрах для клиента
     // Используем уже определенный baseUrl
-    const redirectUrl = `${baseUrl}/patients?google_auth=success&user=${encodeURIComponent(JSON.stringify(userInfo))}`
+    const redirectUrl = `${baseUrl}/?google_auth=success&user=${encodeURIComponent(JSON.stringify(userInfo))}`
 
     return res.redirect(redirectUrl)
   } catch (error) {

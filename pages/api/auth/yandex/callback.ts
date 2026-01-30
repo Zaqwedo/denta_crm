@@ -268,7 +268,7 @@ export default async function handler(
     if (!redirectBaseUrl) redirectBaseUrl = 'http://localhost:3000'
     redirectBaseUrl = redirectBaseUrl.replace(/\/$/, '')
 
-    const redirectUrl = `${redirectBaseUrl}/patients?yandex_auth=success&user=${encodeURIComponent(JSON.stringify(userInfo))}`
+    const redirectUrl = `${redirectBaseUrl}/?yandex_auth=success&user=${encodeURIComponent(JSON.stringify(userInfo))}`
     console.log('🔄 Redirecting to:', redirectUrl)
 
     return res.redirect(redirectUrl)

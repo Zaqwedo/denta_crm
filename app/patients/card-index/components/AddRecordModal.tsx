@@ -1,19 +1,12 @@
 import React from 'react'
 import { DB_COLUMNS } from '@/lib/constants'
+import { NewRecord } from '../types'
 
 interface AddRecordModalProps {
     isAddingRecord: boolean
     setIsAddingRecord: (show: boolean) => void
-    newRecord: {
-        date: string
-        time: string
-        doctor: string
-        nurse: string
-        teeth: string
-        notes: string
-        status: string
-    }
-    setNewRecord: (record: any) => void
+    newRecord: NewRecord
+    setNewRecord: (record: NewRecord) => void
     doctors: string[]
     nurses: string[]
     handleAddRecord: () => Promise<void>

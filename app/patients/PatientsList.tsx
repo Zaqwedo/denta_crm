@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { PatientCard } from './PatientCard'
 import { SearchAndFilters } from './SearchAndFilters'
+import { Header } from '../components/Header'
 
 interface Patient {
   id: string

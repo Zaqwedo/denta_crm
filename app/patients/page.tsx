@@ -1,9 +1,9 @@
 // app/patients/page.tsx
 import { getPatients } from '@/lib/supabase-db'
 import { PatientsList } from './PatientsList'
-import { TabBar } from './TabBar'
 import { ProtectedRoute } from '../components/ProtectedRoute'
 import { GoogleAuthHandler } from './GoogleAuthHandler'
+import { Header } from '../components/Header'
 import { logger } from '@/lib/logger'
 import Link from 'next/link'
 
@@ -43,15 +43,7 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
   return (
     <div className="min-h-screen bg-[#f2f2f7]" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
       <div className="max-w-md mx-auto px-4 py-8">
-        {/* Large Title Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Записи пациентов
-          </h1>
-          <p className="text-lg text-gray-600">
-            Управляйте записями и расписанием
-          </p>
-        </div>
+        <Header title="Записи пациентов" subtitle="Управляйте записями и расписанием" />
 
         {/* Кнопка добавления пациента */}
         <div className="mb-8">
@@ -100,9 +92,6 @@ function PatientsPageContent({ patients, error }: { patients: Array<Record<strin
           />
         )}
       </div>
-
-      {/* Tab Bar */}
-      <TabBar />
     </div>
   )
 }

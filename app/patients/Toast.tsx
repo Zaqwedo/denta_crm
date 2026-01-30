@@ -1,56 +1,45 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react'
 
-interface ToastProps {
+export type ToastType = 'success' | 'error' | 'info'
+
+interface ToastOptions {
   message: string
-  isVisible: boolean
-  onHide: () => void
-}
-
-export function Toast({ message, isVisible, onHide }: ToastProps) {
-  useEffect(() => {
-    if (isVisible) {
-      const timer = setTimeout(() => {
-        onHide()
-      }, 2000)
-
-      return () => clearTimeout(timer)
-    }
-  }, [isVisible, onHide])
-
-  if (!isVisible) return null
-
-  return (
-    <div className="fixed inset-0 flex items-center justify-center z-[100] pointer-events-none">
-      <div
-        className={`bg-green-500 text-white px-6 py-4 rounded-2xl shadow-lg flex items-center gap-3 transform transition-all duration-300 ${
-          isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-        }`}
-      >
-        <div className="text-2xl">✅</div>
-        <span className="font-medium">{message}</span>
-      </div>
-    </div>
-  )
+  type?: ToastType
+  duration?: number
 }
 
 // Global toast state manager
 class ToastManager {
-  private static listeners: ((message: string | null) => void)[] = []
+  private static listeners: ((options: ToastOptions | null) => void)[] = []
 
-  static subscribe(listener: (message: string | null) => void) {
+  static subscribe(listener: (options: ToastOptions | null) => void) {
     this.listeners.push(listener)
     return () => {
       this.listeners = this.listeners.filter(l => l !== listener)
     }
   }
 
-  static show(message: string) {
-    this.listeners.forEach(listener => listener(message))
-    setTimeout(() => {
-      this.listeners.forEach(listener => listener(null))
-    }, 2000)
+  static success(message: string, duration = 3000) {
+    this.show({ message, type: 'success', duration })
+  }
+
+  static error(message: string, duration = 4000) {
+    this.show({ message, type: 'error', duration })
+  }
+
+  static info(message: string, duration = 3000) {
+    this.show({ message, type: 'info', duration })
+  }
+
+  private static show(options: ToastOptions) {
+    this.listeners.forEach(listener => listener(options))
+  }
+
+  static hide() {
+    this.listeners.forEach(listener => listener(null))
   }
 }
 

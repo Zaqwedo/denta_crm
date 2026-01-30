@@ -2,9 +2,12 @@
 
 import { revalidatePath } from 'next/cache'
 import { DB_COLUMNS, RECORD_STATUS } from '@/lib/constants'
-import { addPatient, updatePatient, deletePatient, archiveAndRemovePatient, getPatientChanges, restorePatient, PatientData, getPatients } from '@/lib/supabase-db'
+import { addPatient, updatePatient, archiveAndRemovePatient, getPatientChanges, restorePatient, PatientData, getPatients, updateUserProfile } from '@/lib/supabase-db'
 import { groupPatientsForCardIndex } from '@/lib/patient-utils'
 import { ClientInfo } from './card-index/types'
+import { logger } from '@/lib/logger'
+import { checkAdminAuth } from '@/lib/auth-check'
+import { getDoctorsForEmailByEmail, getNursesForEmailByEmail } from '@/lib/admin-db'
 
 export async function handleRestorePatient(patientId: string) {
   try {
@@ -16,10 +19,6 @@ export async function handleRestorePatient(patientId: string) {
     return { success: false, error: e.message };
   }
 }
-
-// ... existing imports
-
-// ... existing imports
 
 export async function handleRevertChanges(patientId: string, userEmail: string) {
   try {
@@ -94,7 +93,7 @@ export async function handleRevertChanges(patientId: string, userEmail: string) 
     }
   }
 }
-import { logger } from '@/lib/logger'
+
 
 export async function handleAddPatient(formData: FormData) {
   logger.log('🚀 SERVER ACTION: handleAddPatient вызван')
@@ -223,3 +222,52 @@ export async function handleGetGroupedPatients(): Promise<{ success: true, data:
     }
   }
 }
+
+export async function handleGetDashboardStats(userEmail?: string) {
+  try {
+    const isAdmin = await checkAdminAuth()
+    let allowedDoctors: string[] = []
+    let allowedNurses: string[] = []
+
+    if (!isAdmin && userEmail) {
+      allowedDoctors = await getDoctorsForEmailByEmail(userEmail)
+      allowedNurses = await getNursesForEmailByEmail(userEmail)
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    const patients = await getPatients(userEmail)
+    const todayCount = patients.filter(p => p[DB_COLUMNS.DATE] === today).length
+
+    return {
+      success: true,
+      data: {
+        isAdmin,
+        allowedDoctors,
+        allowedNurses,
+        todayCount
+      }
+    }
+  } catch (error) {
+    logger.error('Ошибка при получении статистики дашборда:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Ошибка при загрузке статистики'
+    }
+  }
+}
+
+export async function handleUpdateUserProfile(email: string, firstName: string, lastName?: string) {
+  try {
+    await updateUserProfile(email, firstName, lastName)
+    revalidatePath('/')
+    revalidatePath('/patients')
+    return { success: true }
+  } catch (error) {
+    logger.error('Ошибка в handleUpdateUserProfile:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Ошибка при обновлении профиля'
+    }
+  }
+}
+

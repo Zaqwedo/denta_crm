@@ -268,7 +268,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
 
       if (result.success) {
         // Показываем уведомление об успехе
-        ToastManager.show('Применено')
+        ToastManager.success('Применено')
         // Закрываем модальное окно только после успешного ответа от сервера
         onClose()
         router.refresh()
