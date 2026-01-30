@@ -158,7 +158,7 @@ export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onP
                   >
                     <div className="flex items-center gap-4">
                       <div className="text-lg font-semibold text-gray-900 min-w-[70px] flex-shrink-0">
-                        {formatTime(patient.time) || 'Время не указано'}
+                        {formatTime(patient.time) || <span className="text-sm leading-tight">Время<br />не указано</span>}
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">{patient.name}</div>

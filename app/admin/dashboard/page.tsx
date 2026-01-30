@@ -605,9 +605,11 @@ export default function AdminDashboard() {
                   )}
 
                   {selectedDoctors.length === 0 && selectedNurses.length === 0 && (
-                    <p className="text-xs text-red-600 font-medium pt-2 border-t border-gray-200">
-                      ⚠️ Если не выбрано ни одного врача или медсестры, email не будет видеть пациентов
-                    </p>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
+                      <p className="text-xs text-red-700 font-medium">
+                        ⚠️ Если не выбрано ни одного врача или медсестры, email не будет видеть пациентов
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -637,7 +639,7 @@ export default function AdminDashboard() {
                           {item.doctors.map((doctor) => (
                             <span
                               key={doctor}
-                              className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-md border border-blue-100"
+                              className="px-2 py-0.5 bg-pink-50 text-pink-700 text-xs rounded-md border border-pink-100"
                             >
                               {doctor}
                             </span>

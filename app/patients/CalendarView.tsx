@@ -148,8 +148,8 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
               <button
                 onClick={goToToday}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${isCurrentWeek
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
               >
                 Сегодня
@@ -171,10 +171,10 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
                     key={index}
                     onClick={() => onDateChange(day)}
                     className={`flex-shrink-0 flex flex-col items-center justify-center min-w-[50px] py-2 px-3 rounded-lg transition-colors ${isToday
-                        ? 'bg-gray-900 text-white'
-                        : isSelected
-                          ? 'bg-gray-100 text-gray-900'
-                          : 'bg-transparent text-gray-600 hover:bg-gray-50'
+                      ? 'bg-gray-900 text-white'
+                      : isSelected
+                        ? 'bg-gray-100 text-gray-900'
+                        : 'bg-transparent text-gray-600 hover:bg-gray-50'
                       }`}
                   >
                     <div className="text-xs font-medium mb-1">
@@ -236,7 +236,7 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
                           {/* Content */}
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium text-gray-600 mb-1">
-                              {timeRange}
+                              {timeRange || <span className="text-xs leading-tight">Время<br />не указано</span>}
                             </div>
                             <div className="text-base font-semibold text-gray-900">
                               {patient.name}
