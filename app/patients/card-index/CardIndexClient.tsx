@@ -5,6 +5,8 @@ import { PatientData, updatePatientProfile, mergePatients, ignoreDuplicate, addP
 import { formatTime } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET, PATIENT_STATUSES } from '@/lib/constants'
+import { handleDeletePatient } from '../actions'
+import { useAuth } from '../../contexts/AuthContext'
 
 interface ClientInfo {
     name: string
@@ -44,6 +46,7 @@ const isNamesSimilar = (name1: string, name2: string) => {
 
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const router = useRouter()
+    const { user } = useAuth()
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
     const [isUpdating, setIsUpdating] = useState(false)
@@ -378,6 +381,36 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         }
     }
 
+    const handleDeleteRecord = async (recordId: string) => {
+        if (!confirm('Вы уверены, что хотите удалить эту запись? Это действие необратимо.')) return
+
+        setIsUpdating(true)
+        try {
+            // @ts-ignore - Supabase User type mismatch workaround if needed
+            const email = user?.email || user?.username || 'unknown'
+
+            const result = await handleDeletePatient(recordId, email)
+
+            if (result.success) {
+                // Оптимистичное удаление из UI
+                if (selectedClient) {
+                    setSelectedClient(prev => prev ? {
+                        ...prev,
+                        records: prev.records.filter(r => r[DB_COLUMNS.ID] !== recordId)
+                    } : null)
+                }
+                router.refresh()
+            } else {
+                alert('Ошибка при удалении: ' + result.error)
+            }
+        } catch (err) {
+            console.error(err)
+            alert('Ошибка при удалении записи')
+        } finally {
+            setIsUpdating(false)
+        }
+    }
+
     const handleSaveNotes = async () => {
         if (!selectedClient) return
         setIsUpdating(true)
@@ -607,8 +640,19 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                                     <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
                                         {record[DB_COLUMNS.DATE] ? new Date(record[DB_COLUMNS.DATE] as string).toLocaleDateString('ru-RU') : 'Дата не указана'} {record[DB_COLUMNS.TIME] ? formatTime(record[DB_COLUMNS.TIME] as string) : ''}
                                     </div>
-                                    <div className={`px-3 py-1 rounded-full text-xs font-bold ${record[DB_COLUMNS.STATUS]?.includes(RECORD_STATUS.COMPLETED) ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
-                                        {record[DB_COLUMNS.STATUS] || RECORD_STATUS.WAITING}
+                                    <div className="flex items-center gap-2">
+                                        <div className={`px-3 py-1 rounded-full text-xs font-bold ${record[DB_COLUMNS.STATUS]?.includes(RECORD_STATUS.COMPLETED) ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
+                                            {record[DB_COLUMNS.STATUS] || RECORD_STATUS.WAITING}
+                                        </div>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteRecord(record[DB_COLUMNS.ID] as string) }}
+                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
+                                            title="Удалить запись"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 mb-4">

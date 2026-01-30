@@ -1,7 +1,96 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { addPatient, updatePatient, deletePatient, archiveAndRemovePatient, PatientData } from '@/lib/supabase-db'
+import { DB_COLUMNS } from '@/lib/constants'
+import { addPatient, updatePatient, deletePatient, archiveAndRemovePatient, getPatientChanges, restorePatient, PatientData } from '@/lib/supabase-db'
+
+export async function handleRestorePatient(patientId: string) {
+  try {
+    await restorePatient(patientId);
+    revalidatePath('/patients');
+    revalidatePath('/patients/changes');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+// ... existing imports
+
+// ... existing imports
+
+export async function handleRevertChanges(patientId: string, userEmail: string) {
+  try {
+    // 1. Получаем последние изменения
+    const changes = await getPatientChanges(patientId);
+    if (!changes || changes.length === 0) {
+      return { success: false, error: 'История изменений пуста' };
+    }
+
+    // 2. Находим время последнего изменения (первый элемент, т.к. сортировка DESC)
+    const lastChangeTime = new Date(changes[0].changed_at).getTime();
+
+    // 3. Фильтруем все изменения, которые произошли в эту же сессию (в пределах 2 секунд)
+    const changesToRevert = changes.filter(c => {
+      const t = new Date(c.changed_at).getTime();
+      return Math.abs(t - lastChangeTime) < 2000;
+    });
+
+    if (changesToRevert.length === 0) {
+      return { success: false, error: 'Нет изменений для отмены' };
+    }
+
+    // 4. Маппинг русских названий полей обратно в колонки БД
+    const reverseFieldMapping: Record<string, string> = {
+      'ФИО': DB_COLUMNS.NAME,
+      'Телефон': DB_COLUMNS.PHONE,
+      'Комментарии': DB_COLUMNS.COMMENT,
+      'Дата записи': DB_COLUMNS.DATE,
+      'Время записи': DB_COLUMNS.TIME,
+      'Статус': DB_COLUMNS.STATUS,
+      'Доктор': DB_COLUMNS.DOCTOR,
+      'Зубы': DB_COLUMNS.TEETH,
+      'Медсестра': DB_COLUMNS.NURSE,
+      'Дата рождения': DB_COLUMNS.BIRTH_DATE,
+      'Смайлик': DB_COLUMNS.EMOJI,
+      'Общие заметки': DB_COLUMNS.NOTES
+    };
+
+    const updateData: Partial<PatientData> = {};
+    let revertCount = 0;
+
+    for (const change of changesToRevert) {
+      const dbCol = reverseFieldMapping[change.field_name];
+      if (dbCol) {
+        // Восстанавливаем старое значение
+        // Важно: если old_value null, передаем null/undefined
+        updateData[dbCol as keyof PatientData] = change.old_value || undefined;
+        revertCount++;
+      }
+    }
+
+    if (revertCount === 0) {
+      return { success: false, error: 'Не удалось определить поля для отмены' }
+    }
+
+    logger.log(`Reverting ${revertCount} changes for patient ${patientId}`);
+
+    // 5. Применяем обратные изменения
+    // Указываем userEmail, чтобы в истории это отразилось как изменение этим пользователем
+    await updatePatient(patientId, updateData as PatientData, userEmail);
+
+    revalidatePath('/patients/changes');
+    revalidatePath('/patients'); // Обновляем и список пациентов
+    return { success: true };
+
+  } catch (error) {
+    logger.error('Ошибка при отмене изменений:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Ошибка при отмене изменений'
+    }
+  }
+}
 import { logger } from '@/lib/logger'
 
 export async function handleAddPatient(formData: FormData) {
@@ -53,9 +142,9 @@ export async function handleAddPatient(formData: FormData) {
     return { success: true }
   } catch (error) {
     logger.error('Ошибка при добавлении пациента:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Произошла ошибка при добавлении пациента' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Произошла ошибка при добавлении пациента'
     }
   }
 }
@@ -106,15 +195,15 @@ export async function handleUpdatePatient(patientId: string | number, formData: 
 export async function handleDeletePatient(patientId: string | number, deletedByEmail: string) {
   try {
     await archiveAndRemovePatient(String(patientId), deletedByEmail)
-    
+
     revalidatePath('/patients')
-    
+
     return { success: true }
   } catch (error) {
     logger.error('Ошибка при удалении пациента:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Произошла ошибка при удалении пациента' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Произошла ошибка при удалении пациента'
     }
   }
 }

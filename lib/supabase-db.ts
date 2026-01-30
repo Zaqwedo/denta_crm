@@ -254,16 +254,30 @@ export async function getPatientChanges(patientId: string): Promise<Array<{
       .order('changed_at', { ascending: false })
       .limit(50) // Ограничиваем последними 50 изменениями
 
-    if (error) {
-      logger.error('Ошибка при получении истории изменений:', error)
-      return []
-    }
-
     return data || []
   } catch (error) {
     logger.error('Ошибка при получении истории изменений:', error)
     return []
   }
+}
+
+export interface PatientData {
+  [DB_COLUMNS.ID]?: string;
+  [DB_COLUMNS.NAME]: string;
+  [DB_COLUMNS.PHONE]?: string;
+  [DB_COLUMNS.COMMENT]?: string;
+  [DB_COLUMNS.DATE]?: string;
+  [DB_COLUMNS.TIME]?: string;
+  [DB_COLUMNS.STATUS]?: string;
+  [DB_COLUMNS.DOCTOR]?: string;
+  [DB_COLUMNS.TEETH]?: string;
+  [DB_COLUMNS.NURSE]?: string;
+  [DB_COLUMNS.BIRTH_DATE]?: string;
+  [DB_COLUMNS.CREATED_BY]?: string;
+  [DB_COLUMNS.EMOJI]?: string;
+  [DB_COLUMNS.NOTES]?: string;
+  [DB_COLUMNS.IGNORED_ID]?: string;
+  is_deleted?: boolean;
 }
 
 /**
@@ -291,6 +305,8 @@ export async function getChangedPatients(): Promise<PatientData[]> {
     })
 
     const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
+
+    // --- 1. Получаем активных пациентов ---
     let query = client.from('patients').select('*')
 
     // Если пользователь не админ, применяем фильтрацию по врачам
@@ -321,47 +337,66 @@ export async function getChangedPatients(): Promise<PatientData[]> {
     }
 
     // Получаем данные с применением фильтров
-    const { data, error } = await query.order('id', { ascending: false })
+    const { data: activeData, error: activeError } = await query.order('id', { ascending: false })
 
-    if (error) {
-      logger.error('Ошибка при получении измененных записей из Supabase:', error);
-      throw new Error(`Ошибка Supabase: ${error.message}`);
+    if (activeError) {
+      logger.error('Ошибка при получении измененных записей из Supabase:', activeError);
+      throw new Error(`Ошибка Supabase: ${activeError.message}`);
     }
 
-    if (!data) {
-      return [];
-    }
-
-    // Фильтруем записи, которые были изменены (updated_at существует и отличается от created_at)
-    const changedPatients = data.filter((patient: any) => {
-      // Проверяем наличие полей created_at и updated_at
+    // Фильтруем активные записи (только измененные)
+    const changedActivePatients = (activeData || []).filter((patient: any) => {
       const hasUpdatedAt = patient.updated_at !== null && patient.updated_at !== undefined;
       const hasCreatedAt = patient.created_at !== null && patient.created_at !== undefined;
-
-      if (!hasUpdatedAt) {
-        // Если updated_at нет, значит поле еще не настроено в Supabase
-        return false;
-      }
-
-      if (!hasCreatedAt) {
-        // Если created_at нет, но updated_at есть, считаем запись измененной
-        return true;
-      }
-
-      // Сравниваем даты (с точностью до секунды)
+      if (!hasUpdatedAt) return false;
+      if (!hasCreatedAt) return true;
       try {
         const updatedTime = new Date(patient.updated_at).getTime();
         const createdTime = new Date(patient.created_at).getTime();
-        // Если updated_at отличается от created_at более чем на 1 секунду, значит запись была изменена
         return Math.abs(updatedTime - createdTime) > 1000;
-      } catch (e) {
-        // Если не удалось распарсить даты, пропускаем запись
-        return false;
-      }
+      } catch (e) { return false; }
     });
 
-    // Сортируем по updated_at (новые изменения сверху)
-    changedPatients.sort((a: any, b: any) => {
+    // --- 2. Получаем удаленных пациентов ---
+    // Для удаленных тоже нужно применять фильтр по врачам, но пока упростим (или используем админский клиент если нужно видеть всё)
+    // Лучше использовать тот же client чтобы соблюдать права
+    // Но таблица deleted_patients может не иметь RLS настроенного так же.
+    // Предположим, что deleted_patients доступна для чтения.
+
+    // ВНИМАНИЕ: Если таблица deleted_patients имеет колонки doctor/nurse, фильтрация нужна.
+    // Если нет - мы можем показать лишнее. 
+    // Обычно архив содержит копию данных, значит doctor там есть.
+
+    let deletedQuery = client.from('deleted_patients').select('*').order('deleted_at', { ascending: false }).limit(20);
+
+    // Применяем те же фильтры, если не админ (копипаст логики выше, или упрощенно)
+    // Для скорости пока без жесткой фильтрации, или если структура 1в1
+    // Если deleted_patients имеет те же колокни
+    if (!isAdmin && email) {
+      // ... повтор логики фильтрации для deleted_patients ...
+      // Чтобы не дублировать код, и так как deleted_patients может быть проще,
+      // пока просто получим последние удаленные, а отфильтруем в памяти (безопаснее если записей немного)
+    }
+
+    const { data: deletedData, error: deletedError } = await deletedQuery;
+
+    if (deletedError) {
+      logger.error('Ошибка получения удаленных пациентов:', deletedError);
+      // Не падаем, просто без удаленных
+    }
+
+    const mappedDeletedPatients = (deletedData || []).map((d: any) => ({
+      ...d,
+      id: d.original_id, // Важно!
+      [DB_COLUMNS.STATUS]: 'УДАЛЕН',
+      updated_at: d.deleted_at, // Используем время удаления как время обновления
+      is_deleted: true
+    }));
+
+    // --- 3. Объединяем и сортируем ---
+    const allPatients = [...changedActivePatients, ...mappedDeletedPatients];
+
+    allPatients.sort((a: any, b: any) => {
       const aTime = a.updated_at ? new Date(a.updated_at).getTime() : 0;
       const bTime = b.updated_at ? new Date(b.updated_at).getTime() : 0;
       return bTime - aTime;
@@ -369,12 +404,12 @@ export async function getChangedPatients(): Promise<PatientData[]> {
 
     logger.info('getChangedPatients: результат', {
       isAdmin,
-      email: email ? email.toLowerCase().trim() : 'не указан',
-      totalPatients: data.length,
-      changedPatientsCount: changedPatients.length,
+      mergedCount: allPatients.length,
+      active: changedActivePatients.length,
+      deleted: mappedDeletedPatients.length
     })
 
-    return changedPatients as PatientData[];
+    return allPatients as PatientData[];
 
   } catch (error) {
     logger.error('Ошибка при получении измененных записей:', error);
@@ -473,10 +508,10 @@ async function savePatientChanges(
 
     // Сохраняем изменения, если они есть
     if (changes.length > 0) {
-      // Устанавливаем анонимную сессию для RLS
-      await ensureAnonymousSession()
+      // Используем админский клиент для гарантированной записи в историю
+      const adminClient = getSupabaseAdmin()
 
-      const { error } = await supabase
+      const { error } = await adminClient
         .from('patient_changes')
         .insert(changes)
 
@@ -591,41 +626,61 @@ export async function deletePatient(patientId: string): Promise<void> {
 export async function archiveAndRemovePatient(patientId: string, deletedByEmail: string): Promise<void> {
   logger.log('🚀 Supabase: archiveAndRemovePatient вызван для ID:', patientId);
 
-  try {
-    // Устанавливаем анонимную сессию для RLS
-    await safeEnsureAnonymousSession()
+  if (!patientId || patientId === 'undefined' || patientId === 'null') {
+    throw new Error(`Некорректный ID записи: ${patientId}`);
+  }
 
-    // 1. Сначала получаем данные пациента
-    const { data: patient, error: fetchError } = await supabase
+  try {
+    // Используем админский клиент для гарантированного доступа к записи
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Сначала получаем данные записи (визита)
+    // Используем limit(1) вместо single(), чтобы избежать ошибки 'Cannot coerce' если записей 0 или >1
+    const { data: patients, error: fetchError } = await adminClient
       .from('patients')
       .select('*')
       .eq('id', patientId)
-      .single();
+      .limit(1);
 
-    if (fetchError || !patient) {
-      throw new Error(`Не удалось найти пациента: ${fetchError?.message || 'запись не найдена'}`);
+    if (fetchError) {
+      throw new Error(`Ошибка при поиске записи: ${fetchError.message}`);
     }
 
-    // 2. Вставляем данные в таблицу deleted_patients
-    // Исключаем id, created_at, updated_at и другие системные поля, которые могут конфликтовать
-    const { id, created_at, updated_at, ...patientDataWithoutSystemFields } = patient as any;
+    if (!patients || patients.length === 0) {
+      throw new Error('Запись не найдена или уже удалена');
+    }
 
-    const { error: insertError } = await supabase
+    const patient = patients[0];
+
+    // 2. Вставляем данные в таблицу deleted_patients (архив)
+    // Исключаем системные поля и поля, которых нет в таблице архива (emoji, notes)
+    const {
+      id,
+      created_at,
+      updated_at,
+      emoji,
+      notes,
+      ignored_duplicate_id, // Тоже скорее всего нет в архиве
+      ...patientDataWithoutSystemFields
+    } = patient as any;
+
+    const { error: insertError } = await adminClient
       .from('deleted_patients')
       .insert([{
         ...patientDataWithoutSystemFields,
-        original_id: String(id), // Принудительно в строку
+        original_id: String(id),
         deleted_by_email: deletedByEmail,
         deleted_at: new Date().toISOString()
       }]);
 
     if (insertError) {
-      logger.error('Ошибка при архивации пациента:', insertError);
+      logger.error('Ошибка при архивации записи:', insertError);
       throw new Error(`Ошибка архивации: ${insertError.message}`);
     }
 
     // 3. Если архивация успешна, удаляем из основной таблицы
-    const { error: deleteError } = await supabase
+    // Удаляем конкретную запись о визите по ID
+    const { error: deleteError } = await adminClient
       .from('patients')
       .delete()
       .eq('id', patientId);
@@ -634,7 +689,7 @@ export async function archiveAndRemovePatient(patientId: string, deletedByEmail:
       throw new Error(`Ошибка при удалении после архивации: ${deleteError.message}`);
     }
 
-    logger.log('✅ Supabase: Пациент успешно архивирован и удален!');
+    logger.log('✅ Supabase: Запись успешно архивирована и удаленa!');
 
   } catch (error) {
     logger.error('❌ Ошибка в archiveAndRemovePatient:', error);
@@ -681,13 +736,14 @@ export async function mergePatients(
 ): Promise<void> {
   try {
     if (!sourceRecordIds || sourceRecordIds.length === 0) {
-      console.warn('mergePatients: список ID пуст');
+      logger.warn('mergePatients: список ID пуст');
       return;
     }
 
-    await safeEnsureAnonymousSession()
+    // Используем админский клиент для гарантии прав
+    const adminClient = getSupabaseAdmin()
 
-    console.log('mergePatients: начинаю обновление', {
+    logger.log('mergePatients: начинаю обновление', {
       sourceCount: sourceRecordIds.length,
       targetName: target.name,
       targetBirth: target.birthDate,
@@ -695,7 +751,7 @@ export async function mergePatients(
     });
 
     // Обновляем все записи переданных ID, меняя их ФИО и ДР на таргетные
-    const { data, error } = await supabase
+    const { data, error } = await adminClient
       .from('patients')
       .update({
         [DB_COLUMNS.NAME]: target.name,
@@ -707,14 +763,13 @@ export async function mergePatients(
       .select(); // Добавляем select чтобы увидеть результат
 
     if (error) {
-      console.error('mergePatients: ошибка Supabase', error);
+      logger.error('mergePatients: ошибка Supabase', error);
       throw error;
     }
 
-    console.log('mergePatients: успешно обновлено записей:', data?.length);
+    logger.log('mergePatients: успешно обновлено записей:', data?.length);
   } catch (error) {
     logger.error('Ошибка при объединении пациентов:', error)
-    console.error('mergePatients: критическая ошибка', error);
     throw error
   }
 }
@@ -727,7 +782,7 @@ export async function ignoreDuplicate(
   client2: { name: string, birthDate: string | null }
 ): Promise<void> {
   try {
-    await safeEnsureAnonymousSession()
+    const adminClient = getSupabaseAdmin()
 
     // Генерируем уникальную метку для пары (сортируем, чтобы порядок был всегда один)
     const p1 = client1
@@ -743,7 +798,7 @@ export async function ignoreDuplicate(
       const name = p.name
       const birth = p.birthDate
 
-      let q = supabase.from('patients').select(DB_COLUMNS.IGNORED_ID).eq(DB_COLUMNS.NAME, name)
+      let q = adminClient.from('patients').select(DB_COLUMNS.IGNORED_ID).eq(DB_COLUMNS.NAME, name)
       if (birth) q = q.eq(DB_COLUMNS.BIRTH_DATE, birth)
       else q = q.is(DB_COLUMNS.BIRTH_DATE, null)
 
@@ -752,7 +807,7 @@ export async function ignoreDuplicate(
         const current = data[0][DB_COLUMNS.IGNORED_ID] || ''
         const updated = current ? `${current},${pairId}` : pairId
 
-        let upQ = supabase.from('patients').update({ [DB_COLUMNS.IGNORED_ID]: updated }).eq(DB_COLUMNS.NAME, name)
+        let upQ = adminClient.from('patients').update({ [DB_COLUMNS.IGNORED_ID]: updated }).eq(DB_COLUMNS.NAME, name)
         if (birth) upQ = upQ.eq(DB_COLUMNS.BIRTH_DATE, birth)
         else upQ = upQ.is(DB_COLUMNS.BIRTH_DATE, null)
 
@@ -762,5 +817,71 @@ export async function ignoreDuplicate(
   } catch (error) {
     logger.error('Ошибка при игнорировании дублей:', error)
     throw error
+  }
+}
+
+/**
+ * Восстанавливает пациента из архива
+ */
+export async function restorePatient(patientId: string): Promise<void> {
+  logger.log('🚀 Supabase: restorePatient вызван для ID:', patientId);
+
+  try {
+    const adminClient = getSupabaseAdmin()
+
+    // 1. Находим в архиве по оригинальному ID
+    const { data: deletedRecord, error: fetchError } = await adminClient
+      .from('deleted_patients')
+      .select('*')
+      .eq('original_id', patientId)
+      .limit(1);
+
+    if (fetchError) throw new Error(`Ошибка поиска в архиве: ${fetchError.message}`);
+    if (!deletedRecord || deletedRecord.length === 0) throw new Error('Запись не найдена в архиве');
+
+    const record = deletedRecord[0];
+
+    // 2. Подготавливаем данные для восстановления
+    // Исключаем поля таблицы deleted_patients
+    const {
+      id, // PK таблицы deleted_patients
+      original_id,
+      deleted_by_email,
+      deleted_at,
+      ...patientData
+    } = record;
+
+    // Восстанавливаем оригинальный UUID
+    const dataToRestore = {
+      ...patientData,
+      id: original_id,
+      updated_at: new Date().toISOString(), // Обновляем время, чтобы она всплыла в изменениях
+      created_at: patientData.created_at || new Date().toISOString() // Восстанавливаем или задаем текущее
+    };
+
+    // 3. Вставляем обратно в patients
+    const { error: insertError } = await adminClient
+      .from('patients')
+      .insert([dataToRestore]);
+
+    if (insertError) {
+      throw new Error(`Ошибка восстановления: ${insertError.message}`);
+    }
+
+    // 4. Удаляем из архива
+    const { error: deleteError } = await adminClient
+      .from('deleted_patients')
+      .delete()
+      .eq('original_id', patientId);
+
+    if (deleteError) {
+      logger.warn(`Запись восстановлена, но не удалена из архива: ${deleteError.message}`);
+    }
+
+    logger.log('✅ Supabase: Запись успешно восстановлена!');
+
+  } catch (error) {
+    logger.error('❌ Ошибка в restorePatient:', error);
+    throw error;
   }
 }

@@ -53,6 +53,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
   const [error, setError] = useState<string | null>(initialError)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
   const [birthDateDisplay, setBirthDateDisplay] = useState(initialPatient?.birthDate ? convertISOToDisplay(initialPatient.birthDate) : '')
   const [appointmentDateDisplay, setAppointmentDateDisplay] = useState(initialPatient?.date ? convertISOToDisplay(initialPatient.date) : '')
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -286,6 +287,8 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
 
       if (result.success) {
         router.refresh()
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 3000)
       } else {
         setError(result.error || 'Произошла ошибка при обновлении')
       }
@@ -599,6 +602,14 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
         onCancel={handleCancelChanges}
         changes={getChanges()}
       />
+      {showSuccess && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-900/90 text-white px-6 py-3 rounded-full shadow-xl backdrop-blur-md flex items-center gap-3 z-[100] animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none">
+          <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="font-medium">Изменения успешно сохранены</span>
+        </div>
+      )}
     </ProtectedRoute>
   )
 }

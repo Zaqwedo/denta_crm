@@ -128,6 +128,7 @@ function ChangesPageContent({
                 status: patient.Статус || null,
                 nurse: patient.Медсестра || null,
                 emoji: patient.emoji || null,
+                is_deleted: patient.is_deleted || false,
               }
 
               const changeDate = formatChangeDate(patient.updated_at, patient.created_at)
