@@ -20,6 +20,7 @@
     "@emailjs/browser": "^4.4.1",
     "@supabase/supabase-js": "^2.90.1",
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/react-window": "^1.8.8",
     "csv-parse": "^6.1.0",
     "dotenv": "^17.2.3",
     "google-auth-library": "^10.5.0",
@@ -28,7 +29,8 @@
     "next": "^16.1.1",
     "node-fetch": "^3.3.2",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "react-window": "^2.2.5"
   },
   "devDependencies": {
     "@types/node": "^25.0.6",

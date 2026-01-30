@@ -1,88 +1,38 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { PatientData, updatePatientProfile, mergePatients, ignoreDuplicate, addPatient } from '@/lib/supabase-db'
-import { formatTime } from '@/lib/utils'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { PatientData, updatePatientProfile, getPatients, addPatient, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
 import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET, PATIENT_STATUSES } from '@/lib/constants'
 import { handleDeletePatient } from '../actions'
 import { useAuth } from '../../contexts/AuthContext'
+import { List } from 'react-window'
+import { ClientInfo } from './types'
+import { ClientCard } from './components/ClientCard'
+import { FiltersPanel } from './components/FiltersPanel'
+import { DuplicatesSection } from './components/DuplicatesSection'
+import { ClientDetails } from './components/ClientDetails'
 
-interface ClientInfo {
-    name: string
-    birthDate: string | null
-    phones: string[]
-    emoji: string | null
-    notes: string | null
-    ignoredIds: string[]
-    records: PatientData[]
+const logger = {
+    log: (...args: any[]) => console.log(...args),
+    error: (...args: any[]) => console.error(...args),
+    warn: (...args: any[]) => console.warn(...args)
 }
 
 // Вспомогательная функция для нормализации ФИО (для сравнения)
-const normalizeName = (name: string) => {
-    return name
-        .replace(/[\u{1F300}-\u{1F9FF}]|[\u{2700}-\u{27BF}]|[\u{2600}-\u{26FF}]/gu, '') // Удаляем эмодзи
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, ' ')
-}
-
-// Проверка на схожесть имен (входит ли одно в другое или есть общие слова)
-const isNamesSimilar = (name1: string, name2: string) => {
-    const n1 = normalizeName(name1)
-    const n2 = normalizeName(name2)
-    if (!n1 || !n2) return false
-
-    // Если одно имя содержит другое (например "Иван" и "Иван Иванович")
-    if (n1.includes(n2) || n2.includes(n1)) return true
-
-    // Проверка по словам (если хотя бы два слова длиннее 3 букв совпадают)
-    const words1 = n1.split(' ').filter(w => w.length > 3)
-    const words2 = n2.split(' ').filter(w => w.length > 3)
-
-    const commonWords = words1.filter(w => words2.includes(w))
-    return commonWords.length >= 1
-}
+const normalizeName = (name: string) => name.toLowerCase().replace(/[^а-яё]/g, '').trim()
 
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const router = useRouter()
     const { user } = useAuth()
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
-    const [isUpdating, setIsUpdating] = useState(false)
     const [localNotes, setLocalNotes] = useState('')
-
-    // Состояния для фильтров
     const [showFilters, setShowFilters] = useState(false)
     const [selectedDoctor, setSelectedDoctor] = useState('')
     const [selectedNurse, setSelectedNurse] = useState('')
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
-
-    // Состояния для дублей
-    const [showDuplicates, setShowDuplicates] = useState(false)
-
-    // Загружаем состояние развернутости дублей
-    useEffect(() => {
-        const saved = localStorage.getItem('showDuplicates')
-        if (saved === 'true') setShowDuplicates(true)
-    }, [])
-
-    // Сохраняем состояние при изменении
-    useEffect(() => {
-        localStorage.setItem('showDuplicates', showDuplicates.toString())
-    }, [showDuplicates])
-    const [merging, setMerging] = useState(false)
-    const [previewClient, setPreviewClient] = useState<ClientInfo | null>(null)
-
-    // Состояние для разрешения конфликтов при объединении
-    const [mergeConflict, setMergeConflict] = useState<{
-        source: ClientInfo,
-        target: ClientInfo,
-        chosenName: string,
-        chosenBirthDate: string | null
-    } | null>(null)
-
     const [isAddingRecord, setIsAddingRecord] = useState(false)
     const [newRecord, setNewRecord] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -90,321 +40,169 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         doctor: '',
         nurse: '',
         teeth: '',
-        comment: '',
-        status: 'Ожидает'
+        notes: '',
+        status: PATIENT_STATUSES[0]
     })
+    const [isUpdating, setIsUpdating] = useState(false)
 
-    // Синхронизация selectedClient с новыми данными (например после добавления записи)
-    useEffect(() => {
-        if (selectedClient && initialData) {
-            const updated = initialData.find(c =>
-                c.name === selectedClient.name &&
-                c.birthDate === selectedClient.birthDate
-            )
-            // Обновляем только если изменилось количество записей
-            if (updated && updated.records.length !== selectedClient.records.length) {
-                console.log('Syncing selected client data...')
-                setSelectedClient(prev => prev ? { ...prev, records: updated.records } : null)
-            }
-        }
-    }, [initialData])
+    // Состояние для дублей
+    const [showDuplicates, setShowDuplicates] = useState(false)
+    const [merging, setMerging] = useState(false)
+    const [previewClient, setPreviewClient] = useState<ClientInfo | null>(null)
+    const [mergeConflict, setMergeConflict] = useState<{
+        source: ClientInfo,
+        target: ClientInfo,
+        chosenName: string,
+        chosenBirthDate: string | null
+    } | null>(null)
 
+    // При выборе клиента синхронизируем заметки
     useEffect(() => {
         if (selectedClient) {
             setLocalNotes(selectedClient.notes || '')
         }
     }, [selectedClient])
 
-    // Поиск дублей
+    // Поиск потенциальных дублей (одинаковые телефоны, но разные ФИО/ДР)
     const potentialDuplicates = useMemo(() => {
-        console.log('Поиск дублей среди:', initialData.length, 'пациентов');
-        const groups: ClientInfo[][] = []
+        const phoneToClients = new Map<string, ClientInfo[]>()
 
-        // 1. Группировка по телефону
-        const phoneMap: Record<string, ClientInfo[]> = {}
         initialData.forEach(client => {
             client.phones.forEach(phone => {
-                const cleanPhone = phone.replace(/\D/g, '')
-                if (cleanPhone.length >= 10) {
-                    if (!phoneMap[cleanPhone]) phoneMap[cleanPhone] = []
-                    if (!phoneMap[cleanPhone].some(c => c.name === client.name && c.birthDate === client.birthDate)) {
-                        phoneMap[cleanPhone].push(client)
-                    }
+                const cleaned = phone.replace(/\D/g, '')
+                if (cleaned.length >= 10) {
+                    if (!phoneToClients.has(cleaned)) phoneToClients.set(cleaned, [])
+                    phoneToClients.get(cleaned)!.push(client)
                 }
             })
         })
-        Object.values(phoneMap).forEach(group => {
-            if (group.length > 1) groups.push(group)
-        })
 
-        // 2. Группировка по имени (даже если есть небольшие отличия)
-        const nameMap: Record<string, ClientInfo[]> = {}
-        initialData.forEach(client => {
-            const normalized = normalizeName(client.name)
-            if (normalized.length > 2) {
-                // Группируем по первому слову (например "Иван")
-                const firstWord = normalized.split(' ')[0]
-                if (firstWord.length > 2) {
-                    if (!nameMap[firstWord]) nameMap[firstWord] = []
-                    nameMap[firstWord].push(client)
-                }
-            }
-        })
-
-        Object.values(nameMap).forEach(group => {
-            if (group.length > 1) {
-                const processedSubGroups: ClientInfo[][] = []
-                group.forEach(c1 => {
-                    let foundGroup = false
-                    for (const subGroup of processedSubGroups) {
-                        if (subGroup.some(c2 => isNamesSimilar(c1.name, c2.name))) {
-                            subGroup.push(c1)
-                            foundGroup = true
-                            break
-                        }
-                    }
-                    if (!foundGroup) processedSubGroups.push([c1])
+        const groups: Array<{ label: string, clients: ClientInfo[] }> = []
+        phoneToClients.forEach((groupClients, phone) => {
+            const unique = Array.from(new Set(groupClients))
+            if (unique.length > 1) {
+                // Проверяем, не игнорировали ли мы уже эту пару
+                const filtered = unique.filter((c, idx) => {
+                    const others = unique.filter((_, i) => i !== idx)
+                    return !others.some(other => {
+                        const pairId = [`${c.name}|${c.birthDate || ''}`, `${other.name}|${other.birthDate || ''}`].sort().join(':::')
+                        return c.ignoredIds.includes(pairId) || other.ignoredIds.includes(pairId)
+                    })
                 })
-                processedSubGroups.forEach(sub => {
-                    if (sub.length > 1) groups.push(sub)
-                })
-            }
-        })
 
-        // Очистка и фильтрация дублей
-        const finalGroups: Array<{ label: string, clients: ClientInfo[] }> = []
-        const seenGroupKeys = new Set<string>()
-
-        groups.forEach(group => {
-            const sortedClients = [...group].sort((a, b) => a.name.localeCompare(b.name))
-            const groupKey = sortedClients.map(c => `${c.name}|${c.birthDate || ''}`).join(':::')
-
-            if (seenGroupKeys.has(groupKey)) return
-            seenGroupKeys.add(groupKey)
-
-            const target = sortedClients[0]
-            const targetTag = `${target.name}|${target.birthDate || ''}`
-
-            const activeClients = sortedClients.filter((c, idx) => {
-                if (idx === 0) return true
-                const cTag = `${c.name}|${c.birthDate || ''}`
-                const pairTag = [cTag, targetTag].sort().join(':::')
-                return !c.ignoredIds.includes(pairTag) && !target.ignoredIds.includes(pairTag)
-            })
-
-            if (activeClients.length > 1) {
-                let label = activeClients[0].name
-                finalGroups.push({ label, clients: activeClients })
-            }
-        })
-
-        console.log('Найдено групп дублей:', finalGroups.length);
-        return finalGroups
-    }, [initialData])
-
-    const handleAddRecord = async () => {
-        if (!selectedClient) return
-
-        // Валидация
-        if (!newRecord.date) {
-            alert('Выберите дату')
-            return
-        }
-
-        setIsUpdating(true)
-        try {
-            await addPatient({
-                [DB_COLUMNS.NAME]: selectedClient.name,
-                [DB_COLUMNS.PHONE]: selectedClient.phones[0] || '',
-                [DB_COLUMNS.BIRTH_DATE]: selectedClient.birthDate || undefined,
-                [DB_COLUMNS.EMOJI]: selectedClient.emoji || undefined,
-                [DB_COLUMNS.NOTES]: selectedClient.notes || undefined,
-                [DB_COLUMNS.DATE]: newRecord.date,
-                [DB_COLUMNS.TIME]: newRecord.time || undefined,
-                [DB_COLUMNS.DOCTOR]: newRecord.doctor,
-                [DB_COLUMNS.NURSE]: newRecord.nurse,
-                [DB_COLUMNS.TEETH]: newRecord.teeth,
-                [DB_COLUMNS.COMMENT]: newRecord.comment,
-                [DB_COLUMNS.STATUS]: newRecord.status || 'Ожидает'
-            })
-
-            setIsAddingRecord(false)
-            setNewRecord({
-                date: new Date().toISOString().split('T')[0],
-                time: '',
-                doctor: '',
-                nurse: '',
-                teeth: '',
-                comment: '',
-                status: 'Ожидает'
-            })
-
-            router.refresh()
-        } catch (err) {
-            alert('Ошибка при создании записи')
-            console.error(err)
-        } finally {
-            setIsUpdating(false)
-        }
-    }
-
-    const startMerge = (source: ClientInfo, target: ClientInfo) => {
-        const hasConflict = normalizeName(source.name) !== normalizeName(target.name) || source.birthDate !== target.birthDate
-
-        if (hasConflict) {
-            setMergeConflict({
-                source,
-                target,
-                chosenName: target.name,
-                chosenBirthDate: target.birthDate
-            })
-        } else {
-            confirmAndMerge(source, target, target.name, target.birthDate)
-        }
-    }
-
-    const confirmAndMerge = async (source: ClientInfo, target: ClientInfo, finalName: string, finalBirth: string | null) => {
-        // Собираем ID вообще всех записей: и из дубля, и из основной карточки
-        // Это важно, так как если мы выбрали новые ФИО/ДР, их нужно прописать везде
-        const allIds = [
-            ...source.records.map(r => r.id),
-            ...target.records.map(r => r.id)
-        ].filter((id): id is string => !!id)
-
-        console.log('Подготовка к объединению:', {
-            sourceName: source.name,
-            targetName: target.name,
-            finalName,
-            finalBirth,
-            totalRecordsToUpdate: allIds.length
-        })
-
-        if (!confirm(`Объединить все записи (${allIds.length} шт.) в одну карточку ${finalName}?`)) return
-
-        setMerging(true)
-        try {
-            await mergePatients(
-                allIds, // Отправляем все ID
-                {
-                    name: finalName,
-                    birthDate: finalBirth,
-                    emoji: target.emoji || source.emoji,
-                    notes: target.notes || source.notes
+                if (filtered.length > 1) {
+                    groups.push({ label: `Телефон: ${phone}`, clients: filtered })
                 }
-            )
-            console.log('Объединение завершено успешно');
-            setMergeConflict(null)
-
-            // В Next.js router.refresh() обновляет данные без полной перезагрузки страницы
-            // Это сохраняет скролл и состояние открытых меню
-            router.refresh();
-        } catch (err) {
-            console.error('Ошибка в CardIndexClient при объединении:', err);
-            alert('Ошибка при объединении. Проверьте консоль браузера.');
-        } finally {
-            setMerging(false)
-        }
-    }
-
-    const handleIgnoreDuplicate = async (source: ClientInfo, target: ClientInfo) => {
-        if (!confirm(`Больше не показывать ${source.name} и ${target.name} как дубликаты?`)) return
-
-        setMerging(true)
-        try {
-            await ignoreDuplicate(
-                { name: source.name, birthDate: source.birthDate },
-                { name: target.name, birthDate: target.birthDate }
-            )
-            router.refresh();
-        } catch (err) {
-            alert('Ошибка при сохранении');
-        } finally {
-            setMerging(false)
-        }
-    }
-
-    // Сократим остальной код для краткости, оставив UI без изменений
-    const doctors = useMemo(() => {
-        const unique = new Set<string>()
-        initialData.forEach(client => {
-            client.records.forEach(r => { if (r[DB_COLUMNS.DOCTOR]) unique.add(r[DB_COLUMNS.DOCTOR] as string) })
+            }
         })
-        return Array.from(unique).sort()
+
+        return groups
     }, [initialData])
 
-    const nurses = useMemo(() => {
-        const unique = new Set<string>()
-        initialData.forEach(client => {
-            client.records.forEach(r => { if (r[DB_COLUMNS.NURSE]) unique.add(r[DB_COLUMNS.NURSE] as string) })
-        })
-        return Array.from(unique).sort()
-    }, [initialData])
-
+    // Фильтрация
     const filteredData = useMemo(() => {
         return initialData.filter(client => {
-            const matchesSearch = !searchTerm ||
+            // Поиск по ФИО или телефону
+            const matchesSearch = searchTerm === '' ||
                 client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 client.phones.some(p => p.includes(searchTerm))
 
             if (!matchesSearch) return false
 
-            const hasActiveFilters = selectedDoctor || selectedNurse || startDate || endDate
-            if (!hasActiveFilters) return true
+            // Фильтры
+            const hasDoctor = selectedDoctor === '' || client.records.some(r => r[DB_COLUMNS.DOCTOR] === selectedDoctor)
+            const hasNurse = selectedNurse === '' || client.records.some(r => r[DB_COLUMNS.NURSE] === selectedNurse)
 
-            return client.records.some(record => {
-                const matchesDoctor = !selectedDoctor || record[DB_COLUMNS.DOCTOR] === selectedDoctor
-                const matchesNurse = !selectedNurse || record[DB_COLUMNS.NURSE] === selectedNurse
-                let matchesDate = true
-                if (record[DB_COLUMNS.DATE]) {
-                    const recDate = record[DB_COLUMNS.DATE] as string
-                    if (startDate && recDate < startDate) matchesDate = false
-                    if (endDate && recDate > endDate) matchesDate = false
-                }
-                return matchesDoctor && matchesNurse && matchesDate
-            })
-        })
+            let matchesDate = true
+            if (startDate || endDate) {
+                matchesDate = client.records.some(r => {
+                    const d = r[DB_COLUMNS.DATE] as string
+                    if (!d) return false
+                    if (startDate && d < startDate) return false
+                    if (endDate && d > endDate) return false
+                    return true
+                })
+            }
+
+            return hasDoctor && hasNurse && matchesDate
+        }).sort((a, b) => a.name.localeCompare(b.name))
     }, [initialData, searchTerm, selectedDoctor, selectedNurse, startDate, endDate])
 
-    const handleEmojiSelect = async (emoji: string) => {
+    const doctors = useMemo(() => {
+        const set = new Set<string>()
+        initialData.forEach(c => c.records.forEach(r => {
+            if (r[DB_COLUMNS.DOCTOR]) set.add(r[DB_COLUMNS.DOCTOR] as string)
+        }))
+        return Array.from(set).sort()
+    }, [initialData])
+
+    const nurses = useMemo(() => {
+        const set = new Set<string>()
+        initialData.forEach(c => c.records.forEach(r => {
+            if (r[DB_COLUMNS.NURSE]) set.add(r[DB_COLUMNS.NURSE] as string)
+        }))
+        return Array.from(set).sort()
+    }, [initialData])
+
+    const handleEmojiSelect = async (newEmoji: string) => {
         if (!selectedClient) return
-        const newEmoji = selectedClient.emoji === emoji ? null : emoji
         setIsUpdating(true)
         try {
-            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.EMOJI]: newEmoji || undefined })
+            await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.EMOJI]: newEmoji })
             setSelectedClient({ ...selectedClient, emoji: newEmoji })
-            const idx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
-            if (idx !== -1) initialData[idx].emoji = newEmoji
+            router.refresh()
         } catch (err) {
-            alert('Ошибка при обновлении реакции')
+            alert('Ошибка при сохранении')
+        } finally {
+            setIsUpdating(false)
+        }
+    }
+
+    const handleAddRecord = async () => {
+        if (!selectedClient || !newRecord.date) return
+        setIsUpdating(true)
+        try {
+            await addPatient({
+                [DB_COLUMNS.NAME]: selectedClient.name,
+                [DB_COLUMNS.BIRTH_DATE]: selectedClient.birthDate || undefined,
+                [DB_COLUMNS.DATE]: newRecord.date,
+                [DB_COLUMNS.TIME]: newRecord.time,
+                [DB_COLUMNS.DOCTOR]: newRecord.doctor,
+                [DB_COLUMNS.NURSE]: newRecord.nurse,
+                [DB_COLUMNS.TEETH]: newRecord.teeth,
+                [DB_COLUMNS.COMMENT]: newRecord.notes,
+                [DB_COLUMNS.STATUS]: newRecord.status,
+                [DB_COLUMNS.EMOJI]: selectedClient.emoji || undefined,
+                [DB_COLUMNS.NOTES]: selectedClient.notes || undefined,
+                [DB_COLUMNS.CREATED_BY]: user?.email || ''
+            })
+            setIsAddingRecord(false)
+            router.refresh()
+            // Обновляем текущего клиента (нужно перезагрузить данные)
+            alert('Запись добавлена. Обновите страницу для просмотра изменений.')
+        } catch (err) {
+            alert('Ошибка при добавлении записи')
         } finally {
             setIsUpdating(false)
         }
     }
 
     const handleDeleteRecord = async (recordId: string) => {
-        if (!confirm('Вы уверены, что хотите удалить эту запись? Это действие необратимо.')) return
-
         setIsUpdating(true)
         try {
-            // @ts-ignore - Supabase User type mismatch workaround if needed
-            const email = user?.email || user?.username || 'unknown'
-
-            const result = await handleDeletePatient(recordId, email)
-
+            const result = await handleDeletePatient(recordId, user?.email || 'unknown')
             if (result.success) {
-                // Оптимистичное удаление из UI
                 if (selectedClient) {
-                    setSelectedClient(prev => prev ? {
-                        ...prev,
-                        records: prev.records.filter(r => r[DB_COLUMNS.ID] !== recordId)
-                    } : null)
+                    setSelectedClient({
+                        ...selectedClient,
+                        records: selectedClient.records.filter(r => r[DB_COLUMNS.ID] !== recordId)
+                    })
                 }
                 router.refresh()
             } else {
                 alert('Ошибка при удалении: ' + result.error)
             }
         } catch (err) {
-            console.error(err)
             alert('Ошибка при удалении записи')
         } finally {
             setIsUpdating(false)
@@ -417,8 +215,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         try {
             await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.NOTES]: localNotes || undefined })
             setSelectedClient({ ...selectedClient, notes: localNotes })
-            const idx = initialData.findIndex(c => c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
-            if (idx !== -1) initialData[idx].notes = localNotes
+            router.refresh()
         } catch (err) {
             alert('Ошибка при сохранении комментария')
         } finally {
@@ -426,259 +223,194 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         }
     }
 
-    if (selectedClient) {
-        return (
-            <div className="animate-in fade-in slide-in-from-right duration-300">
-                <button
-                    onClick={() => setSelectedClient(null)}
-                    className="mb-6 flex items-center text-blue-600 font-medium"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                    Назад к списку
-                </button>
+    const handleIgnoreDuplicate = async (target: ClientInfo, source: ClientInfo) => {
+        setMerging(true)
+        try {
+            await ignoreDuplicate(
+                { name: target.name, birthDate: target.birthDate },
+                { name: source.name, birthDate: source.birthDate }
+            )
+            router.refresh()
+            alert('Дубликат проигнорирован')
+        } catch (err) {
+            alert('Ошибка')
+        } finally {
+            setMerging(false)
+        }
+    }
 
-                <div className="bg-white rounded-[24px] p-6 shadow-sm mb-6 border border-gray-100 relative overflow-hidden text-left">
-                    <div className="absolute top-0 right-0 p-4">
-                        <div className="text-4xl">{selectedClient.emoji}</div>
-                    </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4 pr-12">{selectedClient.name}</h2>
-                    <div className="space-y-3 mb-6">
-                        {selectedClient.birthDate && (
-                            <div className="flex items-center text-gray-600">
-                                <span className="w-32 text-gray-400 font-medium text-sm uppercase tracking-wider">Дата рожд.</span>
-                                <span className="text-lg font-medium">{new Date(selectedClient.birthDate).toLocaleDateString('ru-RU')}</span>
-                            </div>
-                        )}
-                        <div className="flex flex-col gap-2">
-                            <span className="text-gray-400 font-medium text-sm uppercase tracking-wider">Контакты</span>
-                            {selectedClient.phones.map(phone => (
-                                <a key={phone} href={`tel:${phone.replace(/\D/g, '')}`} className="text-blue-600 text-lg font-bold flex items-center hover:underline">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                                    </svg>
-                                    {phone}
-                                </a>
-                            ))}
-                        </div>
-                    </div>
+    const startMerge = async (target: ClientInfo, sources: ClientInfo[]) => {
+        // Пока поддерживаем объединение только с одним источником за раз для простоты выбора ФИО
+        const source = sources[0]
+        if (normalizeName(source.name) !== normalizeName(target.name) || source.birthDate !== target.birthDate) {
+            setMergeConflict({ source, target, chosenName: target.name, chosenBirthDate: target.birthDate })
+        } else {
+            await confirmAndMerge(source, target, target.name, target.birthDate)
+        }
+    }
 
-                    <div className="mb-6 pt-4 border-t border-gray-50">
-                        <label className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-2">Написать комментарий</label>
-                        <div className="flex gap-2">
-                            <textarea
-                                value={localNotes}
-                                onChange={(e) => setLocalNotes(e.target.value)}
-                                placeholder="Общая информация о пациенте..."
-                                className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all resize-none h-20"
-                            />
-                            <button
-                                onClick={handleSaveNotes}
-                                disabled={isUpdating || localNotes === (selectedClient.notes || '')}
-                                className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-opacity flex items-center justify-center self-end"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 00.117-1.408l-7-14z" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="border-t pt-4">
-                        <span className="block text-gray-400 font-medium text-[10px] uppercase tracking-wider mb-3">указать реакцию</span>
-                        <div className={`flex justify-between items-center gap-2 ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}>
-                            {EMOJI_SET.map(emoji => (
-                                <button
-                                    key={emoji}
-                                    onClick={() => handleEmojiSelect(emoji)}
-                                    className={`text-2xl p-2 rounded-xl transition-all active:scale-90 ${selectedClient.emoji === emoji ? 'bg-blue-50 ring-2 ring-blue-100 scale-110' : 'hover:bg-gray-50'}`}
-                                >
-                                    {emoji}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <button
-                    onClick={() => setIsAddingRecord(true)}
-                    className="w-full py-4 mb-6 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Добавить запись
-                </button>
-
-                {isAddingRecord && (
-                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 text-left">
-                        <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
-                            <div className="p-6 bg-blue-600 text-white shrink-0">
-                                <h4 className="font-bold text-xl mb-1">Новая запись</h4>
-                                <p className="text-blue-100 text-sm">Добавление посещения для {selectedClient.name}</p>
-                            </div>
-
-                            <div className="p-6 space-y-4 overflow-y-auto">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Дата</label>
-                                        <input
-                                            type="date"
-                                            value={newRecord.date}
-                                            onChange={e => setNewRecord({ ...newRecord, date: e.target.value })}
-                                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Время</label>
-                                        <input
-                                            type="time"
-                                            value={newRecord.time}
-                                            onChange={e => setNewRecord({ ...newRecord, time: e.target.value })}
-                                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Врач</label>
-                                    <select
-                                        value={newRecord.doctor}
-                                        onChange={e => setNewRecord({ ...newRecord, doctor: e.target.value })}
-                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                                    >
-                                        <option value="">Не выбран</option>
-                                        {doctors.map(d => <option key={d} value={d}>{d}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Медсестра</label>
-                                    <select
-                                        value={newRecord.nurse}
-                                        onChange={e => setNewRecord({ ...newRecord, nurse: e.target.value })}
-                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                                    >
-                                        <option value="">Не выбрана</option>
-                                        {nurses.map(n => <option key={n} value={n}>{n}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Статус</label>
-                                    <select
-                                        value={newRecord.status}
-                                        onChange={e => setNewRecord({ ...newRecord, status: e.target.value })}
-                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                                    >
-                                        {PATIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Зубы</label>
-                                    <input
-                                        type="text"
-                                        value={newRecord.teeth}
-                                        onChange={e => setNewRecord({ ...newRecord, teeth: e.target.value })}
-                                        placeholder="Например: 46, 47"
-                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Комментарий к приему</label>
-                                    <textarea
-                                        value={newRecord.comment}
-                                        onChange={e => setNewRecord({ ...newRecord, comment: e.target.value })}
-                                        placeholder="Жалобы, диагноз или выполненные работы..."
-                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 resize-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="p-6 bg-gray-50 flex gap-3 shrink-0">
-                                <button
-                                    onClick={() => setIsAddingRecord(false)}
-                                    className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all"
-                                >
-                                    Отмена
-                                </button>
-                                <button
-                                    onClick={handleAddRecord}
-                                    disabled={isUpdating}
-                                    className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all disabled:opacity-50"
-                                >
-                                    {isUpdating ? 'Сохранение...' : 'Сохранить'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                <h3 className="text-xl font-bold text-gray-900 mb-4 px-2 text-left">История посещений</h3>
-                <div className="space-y-4">
-                    {selectedClient.records
-                        .sort((a, b) => {
-                            const dateA = (a[DB_COLUMNS.DATE] as string) || ''
-                            const dateB = (b[DB_COLUMNS.DATE] as string) || ''
-                            if (dateA !== dateB) {
-                                return dateB.localeCompare(dateA) // Сначала новые даты
-                            }
-                            const timeA = (a[DB_COLUMNS.TIME] as string) || ''
-                            const timeB = (b[DB_COLUMNS.TIME] as string) || ''
-                            return timeB.localeCompare(timeA) // Сначала позднее время
-                        })
-                        .map((record, index) => (
-                            <div
-                                key={record[DB_COLUMNS.ID] || index}
-                                onClick={() => router.push(`/patients/${record[DB_COLUMNS.ID]}`)}
-                                className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-50 cursor-pointer hover:border-blue-200 hover:shadow-md transition-all active:scale-[0.99] group text-left"
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                                        {record[DB_COLUMNS.DATE] ? new Date(record[DB_COLUMNS.DATE] as string).toLocaleDateString('ru-RU') : 'Дата не указана'} {record[DB_COLUMNS.TIME] ? formatTime(record[DB_COLUMNS.TIME] as string) : ''}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`px-3 py-1 rounded-full text-xs font-bold ${record[DB_COLUMNS.STATUS]?.includes(RECORD_STATUS.COMPLETED) ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-600'}`}>
-                                            {record[DB_COLUMNS.STATUS] || RECORD_STATUS.WAITING}
-                                        </div>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleDeleteRecord(record[DB_COLUMNS.ID] as string) }}
-                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
-                                            title="Удалить запись"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <div>
-                                        <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Врач</span>
-                                        <span className="text-sm font-medium text-gray-800">{record[DB_COLUMNS.DOCTOR] || '—'}</span>
-                                    </div>
-                                    <div>
-                                        <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Медсестра</span>
-                                        <span className="text-sm font-medium text-gray-800">{record[DB_COLUMNS.NURSE] || '—'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                </div>
-            </div>
-        )
+    const confirmAndMerge = async (source: ClientInfo, target: ClientInfo, name: string, birthDate: string | null) => {
+        setMerging(true)
+        setMergeConflict(null)
+        try {
+            const sourceIds = source.records.map(r => r[DB_COLUMNS.ID] as string)
+            await mergePatients(sourceIds, {
+                name,
+                birthDate,
+                emoji: target.emoji || source.emoji,
+                notes: (target.notes || '') + (source.notes ? '\n' + source.notes : '')
+            })
+            router.refresh()
+            alert('Клиенты объединены')
+        } catch (err) {
+            alert('Ошибка объединения')
+        } finally {
+            setMerging(false)
+        }
     }
 
     const hasActiveFilters = selectedDoctor || selectedNurse || startDate || endDate
 
+    if (selectedClient) {
+        return (
+            <ClientDetails
+                selectedClient={selectedClient}
+                setSelectedClient={setSelectedClient}
+                isUpdating={isUpdating}
+                handleEmojiSelect={handleEmojiSelect}
+                handleDeleteRecord={handleDeleteRecord}
+                handleSaveNotes={handleSaveNotes}
+                localNotes={localNotes}
+                setLocalNotes={setLocalNotes}
+                isAddingRecord={isAddingRecord}
+                setIsAddingRecord={setIsAddingRecord}
+                newRecord={newRecord}
+                setNewRecord={setNewRecord}
+                doctors={doctors}
+                nurses={nurses}
+                handleAddRecord={handleAddRecord}
+            />
+        )
+    }
+
     return (
-        <div className="space-y-4">
-            {/* Модальное окно разрешения конфликтов */}
+        <div className="max-w-4xl mx-auto pb-32">
+            <div className="flex items-center justify-end mb-4 px-2">
+                <p className="text-gray-500 font-medium">Всего пациентов: <span className="text-blue-600 font-bold">{initialData.length}</span></p>
+            </div>
+
+            <div className="relative mb-6">
+                <input
+                    type="text"
+                    placeholder="Поиск по ФИО или телефону..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full p-5 pl-14 bg-white rounded-3xl shadow-sm border border-gray-100 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none text-lg font-medium"
+                />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 absolute left-5 top-1/2 -translate-y-1/2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
+
+            <DuplicatesSection
+                potentialDuplicates={potentialDuplicates}
+                showDuplicates={showDuplicates}
+                setShowDuplicates={setShowDuplicates}
+                merging={merging}
+                handleIgnoreDuplicate={handleIgnoreDuplicate}
+                startMerge={startMerge}
+                setPreviewClient={setPreviewClient}
+            />
+
+            <FiltersPanel
+                showFilters={showFilters}
+                setShowFilters={setShowFilters}
+                selectedDoctor={selectedDoctor}
+                setSelectedDoctor={setSelectedDoctor}
+                selectedNurse={selectedNurse}
+                setSelectedNurse={setSelectedNurse}
+                startDate={startDate}
+                setStartDate={setStartDate}
+                endDate={endDate}
+                setEndDate={setEndDate}
+                doctors={doctors}
+                nurses={nurses}
+                hasActiveFilters={hasActiveFilters}
+            />
+
+            <div className="min-h-[600px]">
+                {filteredData.length > 0 ? (
+                    <List
+                        rowCount={filteredData.length}
+                        rowHeight={135}
+                        style={{ height: 800, width: '100%' }}
+                        rowProps={{}}
+                        rowComponent={({ index, style }) => {
+                            return (
+                                <div style={{ ...style, paddingBottom: '12px' }}>
+                                    <ClientCard
+                                        client={filteredData[index]}
+                                        onClick={setSelectedClient}
+                                    />
+                                </div>
+                            )
+                        }}
+                    />
+                ) : (
+                    <div className="text-center py-12 text-gray-400 font-bold bg-white rounded-2xl border-2 border-dashed border-gray-100 italic">
+                        Никто не найден
+                    </div>
+                )}
+            </div>
+
+            {previewClient && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 text-left">
+                    <div className="bg-white rounded-[32px] p-8 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-bold">Просмотр</h3>
+                            <button onClick={() => setPreviewClient(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">ФИО</label>
+                                <div className="text-lg font-bold">{previewClient.name}</div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">Телефоны</label>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                    {previewClient.phones.map(p => <span key={p} className="bg-gray-100 px-2 py-1 rounded-md text-sm font-bold">{p}</span>)}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">Дата рождения</label>
+                                <div className="font-bold">{previewClient.birthDate ? new Date(previewClient.birthDate).toLocaleDateString() : '—'}</div>
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-gray-400">Последние записи</label>
+                                <div className="space-y-2 mt-2">
+                                    {previewClient.records.slice(0, 3).map((r, idx) => (
+                                        <div key={idx} className="p-3 bg-gray-50 rounded-xl text-sm">
+                                            <div className="font-bold text-gray-900">
+                                                {r[DB_COLUMNS.DATE] ? new Date(r[DB_COLUMNS.DATE] as string).toLocaleDateString() : '—'}
+                                                {r[DB_COLUMNS.TIME] ? ` (${(r[DB_COLUMNS.TIME] as string).split(':').slice(0, 2).join(':')})` : ''}
+                                                — {r[DB_COLUMNS.DOCTOR] as string}
+                                            </div>
+                                            {r[DB_COLUMNS.COMMENT] && <div className="text-xs text-gray-500 mt-1 italic">{r[DB_COLUMNS.COMMENT] as string}</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {mergeConflict && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 text-left">
+                <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 text-left">
                     <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
                         <div className="p-6 bg-blue-600 text-white">
                             <h4 className="font-bold text-xl mb-1">Разрешение конфликтов</h4>
@@ -719,120 +451,6 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     </div>
                 </div>
             )}
-
-            {/* Предпросмотр дубля */}
-            {previewClient && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 text-left">
-                    <div className="bg-white rounded-[28px] w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-                        <div className="p-6 bg-amber-50 border-b border-amber-100">
-                            <h4 className="text-amber-900 font-bold text-lg mb-1">Информация о дубле</h4>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div><span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">ФИО</span><p className="text-gray-900 font-bold">{previewClient.name}</p></div>
-                            <div><span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Номер телефона</span><p className="text-blue-600 font-bold">{previewClient.phones.join(', ')}</p></div>
-                            <div><span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Дата рождения</span><p className="text-gray-900 font-medium">{previewClient.birthDate ? new Date(previewClient.birthDate).toLocaleDateString('ru-RU') : 'Не указана'}</p></div>
-                        </div>
-                        <div className="p-4 bg-gray-50"><button onClick={() => setPreviewClient(null)} className="w-full py-4 text-gray-700 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-transform">Закрыть</button></div>
-                    </div>
-                </div>
-            )}
-
-            {/* Поиск */}
-            <div className="relative">
-                <input type="text" placeholder="Поиск по имени или телефону..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full px-5 py-4 pl-12 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" />
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </div>
-
-            {/* Блок дублей */}
-            {potentialDuplicates.length > 0 && (
-                <div className="bg-amber-50 border border-amber-100 rounded-[20px] p-5 shadow-sm text-left">
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2 text-amber-800 font-bold">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                            Найдено дублей: {potentialDuplicates.length}
-                        </div>
-                        <button onClick={() => setShowDuplicates(!showDuplicates)} className="text-xs font-bold text-amber-700 bg-amber-100 px-3 py-1 rounded-full uppercase tracking-wider">{showDuplicates ? 'Скрыть' : 'Показать'}</button>
-                    </div>
-                    {showDuplicates && (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-200 mt-4">
-                            {potentialDuplicates.map((group, gIdx) => (
-                                <div key={gIdx} className="bg-white rounded-xl p-4 border border-amber-200">
-                                    <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-widest">{group.label}</p>
-                                    <div className="space-y-3">
-                                        {group.clients.map((c, cIdx) => (
-                                            <div key={cIdx} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg gap-2">
-                                                <div onClick={() => setPreviewClient(c)} className="cursor-pointer hover:opacity-70 transition-opacity flex-1 min-w-0">
-                                                    <p className="font-bold text-gray-900 text-sm truncate">{c.name}</p>
-                                                    <p className="text-xs text-gray-500">{c.birthDate || 'Без ДР'}</p>
-                                                </div>
-                                                {cIdx === 0 ? (
-                                                    <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-1 rounded uppercase shrink-0">Главная</span>
-                                                ) : (
-                                                    <div className="flex gap-2 shrink-0">
-                                                        <button disabled={merging} onClick={(e) => { e.stopPropagation(); handleIgnoreDuplicate(c, group.clients[0]); }} className="text-[10px] font-bold text-gray-400 hover:text-red-500 px-2 py-1 transition-colors">Не объед.</button>
-                                                        <button disabled={merging} onClick={(e) => { e.stopPropagation(); startMerge(c, group.clients[0]); }} className="text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg active:scale-95 transition-all">Объединить</button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* Основной список */}
-            <button onClick={() => setShowFilters(!showFilters)} className={`w-full px-5 py-3 rounded-2xl font-medium transition-colors flex items-center justify-between ${showFilters || hasActiveFilters ? 'bg-blue-100 text-blue-700 border-2 border-blue-200' : 'bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200'}`}>
-                <div className="flex items-center gap-2">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
-                    <span>Фильтры {hasActiveFilters && '(активны)'}</span>
-                </div>
-                <svg className={`h-5 w-5 transition-transform ${showFilters ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            </button>
-            {showFilters && (
-                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-200 space-y-4 animate-in slide-in-from-top duration-200 text-left">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Врач</label>
-                            <select value={selectedDoctor} onChange={(e) => setSelectedDoctor(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm">
-                                <option value="">Все врачи</option>
-                                {doctors.map(d => <option key={d} value={d}>{d}</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Медсестра</label>
-                            <select value={selectedNurse} onChange={(e) => setSelectedNurse(e.target.value)} className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm">
-                                <option value="">Все медсестры</option>
-                                {nurses.map(n => <option key={n} value={n}>{n}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Диапазон дат записи</label>
-                        <div className="flex gap-2 items-center">
-                            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm" />
-                            <span className="text-gray-300">—</span>
-                            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="flex-1 p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm" />
-                        </div>
-                    </div>
-                    {hasActiveFilters && (
-                        <button onClick={() => { setSelectedDoctor(''); setSelectedNurse(''); setStartDate(''); setEndDate('') }} className="w-full py-3 text-red-600 font-bold text-sm bg-red-50 rounded-xl">Сбросить все</button>
-                    )}
-                </div>
-            )}
-            <div className="space-y-3">
-                {filteredData.length > 0 ? (
-                    filteredData.map((client, idx) => (
-                        <div key={idx} onClick={() => setSelectedClient(client)} className="bg-white p-5 rounded-[20px] shadow-sm hover:shadow-md transition-all active:scale-[0.98] cursor-pointer flex justify-between items-center group overflow-hidden relative text-left">
-                            <div className="flex-1"><div className="flex items-center gap-2 mb-1">{client.emoji && <span className="text-2xl">{client.emoji}</span>}<h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{client.name}</h3></div><p className="text-sm text-gray-500 font-medium ml-1">{client.birthDate ? new Date(client.birthDate).toLocaleDateString('ru-RU') : 'Дата рождения не указана'}</p><div className="flex gap-2 mt-2 ml-1"><span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-md font-bold text-left">{client.records.length} {client.records.length === 1 ? 'посещение' : client.records.length < 5 ? 'посещения' : 'посещений'}</span></div></div><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-300 group-hover:text-blue-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                        </div>
-                    ))
-                ) : (
-                    <div className="text-center py-12 text-gray-400">Никто не найден</div>
-                )}
-            </div>
         </div>
     )
 }

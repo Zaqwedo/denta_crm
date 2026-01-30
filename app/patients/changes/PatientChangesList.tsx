@@ -102,7 +102,7 @@ export function PatientChangesList({ patient, changeDate }: PatientChangesListPr
 
   return (
     <div className="space-y-2">
-      <div className={`relative group ${patient.is_deleted ? 'opacity-75' : ''}`}>
+      <div className={`relative group ${patient.is_deleted ? 'opacity-85 grayscale' : ''}`}>
         <PatientCard
           patient={patient}
           rowIndex={0}
