@@ -4,6 +4,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  console.log('🔥 YANDEX CALLBACK HIT 🔥');
   const { code, error, error_description } = req.query
 
   console.log('--- Yandex Callback ---')
@@ -187,22 +188,24 @@ export default async function handler(
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       )
 
-      const { data: whitelistData, error: whitelistError } = await supabase
+      // Исправленная логика: Проверяем, есть ли этот конкретный email в белом списке
+      const { data: userWhitelistRecord, error: whitelistError } = await supabase
         .from('whitelist_emails')
-        .select('email')
-        .eq('provider', 'yandex') // Проверяем именно provider='yandex'
+        .select('id')
+        .eq('provider', 'yandex')
+        .eq('email', checkEmail)
+        .single() // Ожидаем одну запись
 
-      if (whitelistError) {
+      if (whitelistError && whitelistError.code !== 'PGRST116') { // PGRST116 = not found
         console.error('❌ Whitelist query error:', whitelistError)
         logger.error('Whitelist query error:', whitelistError)
       }
 
-      const allowedEmails = whitelistData?.map(item => item.email.toLowerCase().trim()) || []
+      const isAllowed = !!userWhitelistRecord
 
-      console.log('📋 Yandex whitelist:', allowedEmails)
-      console.log('✅ User email in whitelist?', allowedEmails.includes(checkEmail))
+      console.log('✅ User email found in whitelist?', isAllowed)
 
-      if (allowedEmails.length > 0 && !allowedEmails.includes(checkEmail)) {
+      if (!isAllowed) {
         console.log('❌ Email not in whitelist, redirecting to login')
         logger.warn('Yandex OAuth: Email not in whitelist:', checkEmail)
         return res.redirect('/login?error=yandex_email_not_allowed')
@@ -274,4 +277,4 @@ export default async function handler(
     console.error('Yandex OAuth callback error:', error)
     return res.redirect('/login?error=yandex_oauth_error')
   }
-}
+}// touch to force rebuild
