@@ -22,17 +22,17 @@ export default async function handler(
     console.error('❌ Yandex OAuth error:', error)
     console.error('❌ Yandex OAuth error_description:', error_description)
     console.error('❌ Full query params:', JSON.stringify(req.query))
-    
+
     // Преобразуем query параметры в строки
     const errorStr = Array.isArray(error) ? error[0] : error
-    const errorDescriptionStr = error_description 
+    const errorDescriptionStr = error_description
       ? (Array.isArray(error_description) ? error_description[0] : error_description)
       : null
-    
+
     // Улучшенная обработка ошибок
     let errorCode = 'yandex_oauth_error'
     let errorMessage = errorDescriptionStr || errorStr || 'Неизвестная ошибка'
-    
+
     // Специфичные ошибки от Yandex
     if (errorStr === 'access_denied') {
       errorCode = 'yandex_access_denied'
@@ -50,7 +50,7 @@ export default async function handler(
       errorCode = 'yandex_invalid_scope'
       errorMessage = `Неверный scope: ${errorDescriptionStr || 'Проверьте настройки приложения в Yandex OAuth. Scope должны быть включены в настройках приложения, и их не нужно указывать явно в запросе, если они уже настроены.'}`
     }
-    
+
     console.error('❌ Redirecting to login with error:', errorCode)
     return res.redirect(`/login?error=${errorCode}&details=${encodeURIComponent(errorMessage)}`)
   }
@@ -144,7 +144,7 @@ export default async function handler(
     })
 
     console.log('📥 User info response status:', userResponse.status, userResponse.statusText)
-    
+
     const userData = await userResponse.json()
     console.log('📥 User info response data:', JSON.stringify(userData, null, 2))
 
@@ -165,22 +165,26 @@ export default async function handler(
       default_avatar_id: userData.default_avatar_id ? 'present' : 'missing'
     })
 
-    // Устанавливаем HttpOnly cookie (как в Google)
+    // Устанавливаем HttpOnly cookie с подписанным токеном
     const COOKIE_MAX_AGE_DAYS = 30
     const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60
     const userEmail = (userData.default_email || userData.login || '').toLowerCase().trim()
 
-    let cookieValue = `denta_auth=valid; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
+    // Создаём подписанный токен для аутентификации
+    const { createToken } = await import('@/lib/auth-token')
+    const authToken = await createToken('user')  // payload: 'user' для обычных пользователей
+
+    let cookieValue = `denta_auth=${authToken}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       cookieValue += '; Secure'
     }
-    
+
     // Сохраняем email в cookie для фильтрации пациентов
     let emailCookieValue = `denta_user_email=${userEmail}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       emailCookieValue += '; Secure'
     }
-    
+
     // Удаляем admin_auth cookie при входе через Yandex (если была установлена ранее)
     let adminAuthDeleteCookie = `admin_auth=; HttpOnly; Path=/; Max-Age=0; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {

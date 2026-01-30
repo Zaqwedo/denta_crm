@@ -179,11 +179,15 @@ export default async function handler(
       // Продолжаем без проверки whitelist в случае ошибки
     }
 
-    // Устанавливаем HttpOnly cookie
+    // Устанавливаем HttpOnly cookie с подписанным токеном
     const COOKIE_MAX_AGE_DAYS = 30
     const maxAge = COOKIE_MAX_AGE_DAYS * 24 * 60 * 60
 
-    let cookieValue = `denta_auth=valid; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
+    // Создаём подписанный токен для аутентификации
+    const { createToken } = await import('@/lib/auth-token')
+    const authToken = await createToken('user')  // payload: 'user' для обычных пользователей
+
+    let cookieValue = `denta_auth=${authToken}; HttpOnly; Path=/; Max-Age=${maxAge}; SameSite=lax`
     if (process.env.NODE_ENV === 'production') {
       cookieValue += '; Secure'
     }

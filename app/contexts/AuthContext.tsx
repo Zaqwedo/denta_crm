@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 
@@ -42,6 +42,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const loadAllWhitelists = async () => {
       try {
+        // Проверяем кэш в sessionStorage
+        const cachedData = sessionStorage.getItem('whitelist_cache')
+        const cacheTimestamp = sessionStorage.getItem('whitelist_cache_timestamp')
+
+        if (cachedData && cacheTimestamp) {
+          const age = Date.now() - parseInt(cacheTimestamp)
+          // Кэш действителен 5 минут
+          if (age < 5 * 60 * 1000) {
+            const cached = JSON.parse(cachedData)
+            console.log('Using cached whitelist:', { count: cached.length })
+            setAllowedEmails(cached)
+            return
+          }
+        }
+
         // Загружаем whitelist для всех провайдеров параллельно
         const [emailRes, googleRes, yandexRes] = await Promise.all([
           fetch('/api/whitelist?provider=email'),
@@ -76,6 +91,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           total: uniqueEmails.length,
           emails: uniqueEmails
         })
+
+        // Сохраняем в кэш
+        sessionStorage.setItem('whitelist_cache', JSON.stringify(uniqueEmails))
+        sessionStorage.setItem('whitelist_cache_timestamp', Date.now().toString())
 
         setAllowedEmails(uniqueEmails)
       } catch (error) {
@@ -120,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth()
   }, [])
 
-  const login = (userData: User, authTypeParam?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
+  const login = useCallback((userData: User, authTypeParam?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
     const finalAuthType = authTypeParam || 'email'
 
     // Проверяем, является ли пользователь админом (по username или first_name)
@@ -150,9 +169,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('denta_user', JSON.stringify(userData))
     localStorage.setItem('denta_auth_timestamp', Date.now().toString())
     localStorage.setItem('denta_auth_type', finalAuthType)
-  }
+  }, [allowedEmails])
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setUser(null)
     setAuthType(null)
     localStorage.removeItem('denta_user')
@@ -161,7 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Выходим из Supabase
     await supabase.auth.signOut()
-  }
+  }, [])
 
   const value = {
     user,
