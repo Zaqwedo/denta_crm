@@ -33,17 +33,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Проверяем, если пользователь уже авторизован и пытается зайти на страницу входа
-  if (request.nextUrl.pathname === '/login') {
-    const authCookie = request.cookies.get('denta_auth')
-    const payload = await verifyToken(authCookie?.value)
-
-    if (payload === 'user' || payload === 'admin') {
-      // Если кука валидна, перенаправляем в CRM
-      return NextResponse.redirect(new URL('/patients', request.url))
-    }
-  }
-
   return NextResponse.next()
 }
 
@@ -55,7 +44,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - login (login page - excluded to prevent loops)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|login).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }
