@@ -40,7 +40,7 @@ export function Header({ title, subtitle, onBack }: HeaderProps) {
                 {onBack ? (
                     <button
                         onClick={onBack}
-                        className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-600 hover:text-blue-600 transition-colors shrink-0"
+                        className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
                         aria-label="Назад"
                     >
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,18 +50,18 @@ export function Header({ title, subtitle, onBack }: HeaderProps) {
                 ) : (
                     <button
                         onClick={() => setIsMenuOpen(true)}
-                        className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-600 hover:text-blue-600 transition-colors shrink-0"
+                        className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
                         aria-label="Открыть меню"
                     >
                         <Menu className="w-6 h-6" />
                     </button>
                 )}
                 <div className="flex-1 min-w-0">
-                    <div className="text-2xl font-black text-gray-900 leading-tight">
+                    <div className="text-2xl font-black text-gray-900 dark:text-white leading-tight">
                         {title}
                     </div>
                     {subtitle && (
-                        <p className="text-gray-600 text-base mt-1">
+                        <p className="text-gray-600 dark:text-gray-400 text-base mt-1">
                             {subtitle}
                         </p>
                     )}
@@ -69,7 +69,7 @@ export function Header({ title, subtitle, onBack }: HeaderProps) {
                 {onBack && (
                     <button
                         onClick={() => setIsMenuOpen(true)}
-                        className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100 text-gray-600 hover:text-blue-600 transition-colors shrink-0"
+                        className="p-3 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
                         aria-label="Открыть меню"
                     >
                         <Menu className="w-6 h-6" />

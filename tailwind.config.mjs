@@ -5,6 +5,7 @@ export default {
     './components/**/*.{js,ts,jsx,tsx,mdx}',
     './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  darkMode: ['class', '[class~="dark"]'],
   theme: {
     extend: {
       fontFamily: {
@@ -14,3 +15,4 @@ export default {
   },
   plugins: [],
 }
+

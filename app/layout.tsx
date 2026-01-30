@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { GlobalToast } from './patients/GlobalToast'
 import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import type { Viewport } from 'next'
@@ -34,12 +35,14 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        <AuthProvider>
-          {children}
-          <GlobalToast />
-          <Analytics />
-          <SpeedInsights />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <GlobalToast />
+            <Analytics />
+            <SpeedInsights />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

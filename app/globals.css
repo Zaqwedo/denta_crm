@@ -1,5 +1,85 @@
 @import "tailwindcss";
 
+/* Theme CSS Variables */
+:root {
+  --bg-primary: #F8F9FC;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f9fafb;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+  --shadow-color: rgba(0, 0, 0, 0.05);
+}
+
+html.dark {
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --bg-tertiary: #374151;
+  --text-primary: #f9fafb;
+  --text-secondary: #9ca3af;
+  --border-color: #374151;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Apply theme variables */
+html.dark {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+html.dark body {
+  background-color: #111827 !important;
+  color: #f9fafb !important;
+}
+
+/* Force dark theme on specific elements */
+html.dark .bg-white {
+  background-color: #1f2937 !important;
+}
+
+html.dark .text-gray-900 {
+  color: #f9fafb !important;
+}
+
+html.dark .text-gray-600 {
+  color: #9ca3af !important;
+}
+
+html.dark .text-gray-700 {
+  color: #d1d5db !important;
+}
+
+html.dark .text-gray-400 {
+  color: #9ca3af !important;
+}
+
+html.dark .border-gray-100 {
+  border-color: #374151 !important;
+}
+
+html.dark .border-gray-200 {
+  border-color: #4b5563 !important;
+}
+
+html.dark .bg-gray-50 {
+  background-color: #374151 !important;
+}
+
+html.dark .bg-blue-50 {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+html.dark .shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Override Tailwind arbitrary values */
+html.dark [class*="bg-[#F8F9FC]"],
+html.dark [class*="bg-\\[\\#F8F9FC\\]"] {
+  background-color: #111827 !important;
+}
+
+
 /* iOS Safe Areas */
 .safe-area-inset-bottom {
   padding-bottom: env(safe-area-inset-bottom);
@@ -24,13 +104,16 @@
 }
 
 /* iOS-style focus states */
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 /* Prevent zoom on input focus on iOS */
 @media screen and (max-width: 768px) {
+
   input[type="text"],
   input[type="tel"],
   input[type="email"],
@@ -77,7 +160,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* Ограничиваем ширину всех контейнеров полей в форме */
-#patient-form > div > div {
+#patient-form>div>div {
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
@@ -89,6 +172,7 @@ input:focus, select:focus, textarea:focus {
     opacity: 0;
     transform: translateY(10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -100,6 +184,7 @@ input:focus, select:focus, textarea:focus {
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -107,9 +192,12 @@ input:focus, select:focus, textarea:focus {
 }
 
 @keyframes bounce-gentle {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0);
   }
+
   50% {
     transform: translateY(-5px);
   }
@@ -138,4 +226,3 @@ input:focus, select:focus, textarea:focus {
 .animate-bounce-gentle {
   animation: bounce-gentle 2s infinite;
 }
-

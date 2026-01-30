@@ -6,6 +6,7 @@ import { handleGetDashboardStats, handleUpdateUserProfile } from './patients/act
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { SideMenu } from '@/app/components/SideMenu'
 import { Header } from './components/Header'
+import { ThemeToggle } from './components/ThemeToggle'
 import { ToastManager } from './patients/Toast'
 import {
     User as UserIcon,
@@ -90,15 +91,20 @@ export default function DashboardClient() {
 
     return (
         <ProtectedRoute>
-            <div className="min-h-screen bg-[#F8F9FC] pb-32">
+            <div className="min-h-screen bg-gray-50 pb-32" style={{ backgroundColor: 'var(--bg-primary)' }}>
                 <div className="max-w-md mx-auto px-6 pt-8">
                     <Header
                         title={<>Добрый день,<br />{displayName}!</>}
                     />
 
+                    {/* Theme Toggle */}
+                    <div className="flex justify-center mb-8">
+                        <ThemeToggle />
+                    </div>
+
                     {/* Account Card */}
-                    <div className="bg-white rounded-[32px] p-8 shadow-xl shadow-blue-900/5 mb-8 border border-gray-100 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-blue-50 rounded-full opacity-50" />
+                    <div className="bg-white dark:bg-gray-800 rounded-[32px] p-8 shadow-xl shadow-blue-900/5 dark:shadow-gray-900/20 mb-8 border border-gray-100 dark:border-gray-700 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-blue-50 dark:bg-blue-900/20 rounded-full opacity-50" />
 
                         <div className="relative z-10">
                             <div className="flex items-start justify-between mb-6">
@@ -108,20 +114,20 @@ export default function DashboardClient() {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest truncate mb-1">Учетная запись</p>
-                                        <p className="text-lg font-bold text-gray-900 truncate">{user?.email}</p>
+                                        <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user?.email}</p>
                                     </div>
                                 </div>
 
                                 <button
                                     onClick={handleLogout}
-                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all"
                                     title="Выйти"
                                 >
                                     <LogOut className="w-6 h-6" />
                                 </button>
                             </div>
 
-                            <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 rounded-2xl border border-gray-100 w-full group cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all"
+                            <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 dark:bg-gray-700/50 rounded-2xl border border-gray-100 dark:border-gray-600 w-full group cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-700 transition-all"
                                 onClick={() => !isEditingName && setIsEditingName(true)}>
                                 {isEditingName ? (
                                     <div className="flex items-center gap-2 w-full" onClick={e => e.stopPropagation()}>
@@ -129,7 +135,7 @@ export default function DashboardClient() {
                                             type="text"
                                             value={tempName}
                                             onChange={(e) => setTempName(e.target.value)}
-                                            className="flex-1 bg-white border border-blue-200 rounded-lg px-3 py-1 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="flex-1 bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-500 rounded-lg px-3 py-1 text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             placeholder="Введите ваше имя"
                                             autoFocus
                                         />
@@ -144,10 +150,10 @@ export default function DashboardClient() {
                                 ) : (
                                     <>
                                         <UserIcon className="w-5 h-5 text-blue-500" />
-                                        <span className="text-sm font-bold text-gray-700 flex-1 truncate">
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-200 flex-1 truncate">
                                             {user?.first_name || 'Нажмите, чтобы ввести имя'}
                                         </span>
-                                        <Edit2 className="w-4 h-4 text-gray-300 group-hover:text-blue-500" />
+                                        <Edit2 className="w-4 h-4 text-gray-300 dark:text-gray-500 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
                                     </>
                                 )}
                             </div>
