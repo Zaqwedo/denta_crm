@@ -1,8 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { DB_COLUMNS } from '@/lib/constants'
-import { addPatient, updatePatient, deletePatient, archiveAndRemovePatient, getPatientChanges, restorePatient, PatientData } from '@/lib/supabase-db'
+import { DB_COLUMNS, RECORD_STATUS } from '@/lib/constants'
+import { addPatient, updatePatient, deletePatient, archiveAndRemovePatient, getPatientChanges, restorePatient, PatientData, getPatients } from '@/lib/supabase-db'
+import { groupPatientsForCardIndex } from '@/lib/patient-utils'
+import { ClientInfo } from './card-index/types'
 
 export async function handleRestorePatient(patientId: string) {
   try {
@@ -205,6 +207,19 @@ export async function handleDeletePatient(patientId: string | number, deletedByE
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Произошла ошибка при удалении пациента'
+    }
+  }
+}
+export async function handleGetGroupedPatients(): Promise<{ success: true, data: ClientInfo[] } | { success: false, error: string }> {
+  try {
+    const patients = await getPatients()
+    const grouped = groupPatientsForCardIndex(patients)
+    return { success: true, data: grouped }
+  } catch (error) {
+    logger.error('Ошибка при получении сгруппированных пациентов:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Ошибка при загрузке данных'
     }
   }
 }

@@ -9,32 +9,9 @@ import { PATIENT_STATUSES } from '../../lib/constants'
 import { useConstants } from '../hooks/useConstants'
 import { formatTime } from '@/lib/utils'
 import { ConfirmChangesModal } from './ConfirmChangesModal'
+import { formatPhone, formatBirthDate, convertToISODate, convertISOToDisplay } from '@/lib/formatters'
 
-// Функция для форматирования даты рождения DD.MM.YYYY
-function formatBirthDate(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8)
-  const day = digits.slice(0, 2)
-  const month = digits.slice(2, 4)
-  const year = digits.slice(4, 8)
-
-  if (digits.length <= 2) return day
-  if (digits.length <= 4) return `${day}.${month}`
-  return `${day}.${month}.${year}`
-}
-
-// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
-function convertToISODate(dateStr: string): string {
-  if (!dateStr || dateStr.length < 10) return ''
-  const [day, month, year] = dateStr.split('.')
-  return `${year}-${month}-${day}`
-}
-
-// Функция для конвертации из YYYY-MM-DD в DD.MM.YYYY
-function convertISOToDisplay(isoStr: string): string {
-  if (!isoStr || !isoStr.includes('-')) return isoStr || ''
-  const [year, month, day] = isoStr.split('-')
-  return `${day}.${month}.${year}`
-}
+// Удалено так как теперь в @/lib/formatters
 
 interface PatientDetailsModalProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
@@ -97,7 +74,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
   // Исходные данные для сравнения (будет обновляться в useEffect)
   const [initialData, setInitialData] = useState({
     name,
-    phone,
+    phone: formatPhone(phone),
     date: formattedDate,
     time: formatTime(time),
     doctor: doctor || '',
@@ -133,7 +110,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       nurse: nurse || '',
     }
     setInitialData(newInitialData)
-    setFormData(newInitialData)
+    setFormData({ ...newInitialData, phone: formatPhone(newInitialData.phone) })
     setBirthDateDisplay(birthDate ? convertISOToDisplay(birthDate) : '')
     setAppointmentDateDisplay(date ? convertISOToDisplay(date) : '')
     setError(null)
@@ -164,7 +141,22 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       setFormData({ ...formData, date: '' })
     }
   }
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    if (value.length < 4) {
+      setFormData({ ...formData, phone: '+7 (' })
+      return
+    }
+    const formatted = formatPhone(value)
+    setFormData({ ...formData, phone: formatted })
+  }
 
+  function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Разрешаем удаление, но не позволяем удалить базовую часть
+    if (e.key === 'Backspace' && formData.phone.length <= 4) {
+      e.preventDefault()
+    }
+  }
   // Функция для проверки наличия изменений
   const hasChanges = () => {
     return (
@@ -396,10 +388,12 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                     type="tel"
                     name="phone"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={handlePhoneChange}
+                    onKeyDown={handlePhoneKeyDown}
                     required
                     className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="+7 (999) 123-45-67"
+                    maxLength={18}
                   />
                 </div>
 

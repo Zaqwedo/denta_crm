@@ -6,42 +6,9 @@ import { handleAddPatient } from './actions'
 import { useAuth } from '../contexts/AuthContext'
 import { PATIENT_STATUSES } from '../../lib/constants'
 import { useConstants } from '../hooks/useConstants'
+import { formatPhone, formatBirthDate, convertToISODate, getPhoneDigits } from '@/lib/formatters'
 
-// Функция для форматирования даты рождения DD.MM.YYYY
-function formatBirthDate(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8)
-  const day = digits.slice(0, 2)
-  const month = digits.slice(2, 4)
-  const year = digits.slice(4, 8)
-
-  if (digits.length <= 2) return day
-  if (digits.length <= 4) return `${day}.${month}`
-  return `${day}.${month}.${year}`
-}
-
-// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
-function convertToISODate(dateStr: string): string {
-  if (!dateStr || dateStr.length < 10) return ''
-  const [day, month, year] = dateStr.split('.')
-  return `${year}-${month}-${day}`
-}
-
-// Функция для форматирования телефона с маской
-function formatPhone(value: string): string {
-  const numbers = value.replace(/\D/g, '')
-  let formatted = numbers.startsWith('8') ? '7' + numbers.slice(1) : numbers
-  if (formatted.startsWith('7')) {
-    formatted = formatted.slice(1)
-  }
-
-  const limited = formatted.slice(0, 10)
-
-  if (limited.length === 0) return '+7 ('
-  if (limited.length <= 3) return `+7 (${limited}`
-  if (limited.length <= 6) return `+7 (${limited.slice(0, 3)}) ${limited.slice(3)}`
-  if (limited.length <= 8) return `+7 (${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`
-  return `+7 (${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6, 8)}-${limited.slice(8, 10)}`
-}
+// Удалено так как теперь в @/lib/formatters
 
 export function NewPatientForm() {
   const { user } = useAuth()
@@ -84,13 +51,7 @@ export function NewPatientForm() {
 
     // Форматируем телефон перед отправкой
     const phoneInput = formData.get('phone') as string
-    const phoneDigits = phoneInput.replace(/\D/g, '')
-    const finalFormattedPhone = phoneDigits.startsWith('8')
-      ? `+7${phoneDigits.slice(1)}`
-      : phoneDigits.startsWith('7')
-        ? `+${phoneDigits}`
-        : `+7${phoneDigits}`
-    formData.set('phone', finalFormattedPhone)
+    formData.set('phone', `+${getPhoneDigits(phoneInput)}`)
 
     // Конвертируем дату рождения перед отправкой
     if (birthDateDisplay.length === 10) {

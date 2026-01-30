@@ -1,4 +1,5 @@
 import { getPatients, PatientData } from '@/lib/supabase-db'
+import { groupPatientsForCardIndex } from '@/lib/patient-utils'
 import { ProtectedRoute } from '../../components/ProtectedRoute'
 import { TabBar } from '../TabBar'
 import { CardIndexClient } from './CardIndexClient'
@@ -16,63 +17,7 @@ export default async function CardIndexPage() {
         error = err instanceof Error ? err.message : 'Ошибка загрузки картотеки'
     }
 
-    // Группировка пациентов по ФИО + Дата рождения
-    const groupedPatients: Record<string, {
-        name: string
-        birthDate: string | null
-        phones: string[]
-        emoji: string | null
-        notes: string | null
-        ignoredIds: string[]
-        records: PatientData[]
-    }> = {}
-
-    patients.forEach(p => {
-        const name = p[DB_COLUMNS.NAME] || 'Без имени'
-        // Нормализуем дату рождения для ключа (null, "" и undefined -> "нет-др")
-        const rawDob = p[DB_COLUMNS.BIRTH_DATE]
-        const dobKey = (!rawDob || rawDob === '') ? 'нет-др' : rawDob
-        const key = `${name.trim().toLowerCase()}_${dobKey}`
-
-        if (!groupedPatients[key]) {
-            groupedPatients[key] = {
-                name: name.trim(),
-                birthDate: (!rawDob || rawDob === '') ? null : rawDob,
-                phones: [],
-                emoji: p[DB_COLUMNS.EMOJI] || null,
-                notes: p[DB_COLUMNS.NOTES] || null,
-                ignoredIds: [],
-                records: []
-            }
-        }
-
-        // Если есть эмодзи или заметки в любой из записей
-        if (p[DB_COLUMNS.EMOJI] && !groupedPatients[key].emoji) {
-            groupedPatients[key].emoji = p[DB_COLUMNS.EMOJI] || null
-        }
-        if (p[DB_COLUMNS.NOTES] && !groupedPatients[key].notes) {
-            groupedPatients[key].notes = p[DB_COLUMNS.NOTES] || null
-        }
-
-        // Накапливаем все ID игнорируемых дублей
-        if (p[DB_COLUMNS.IGNORED_ID]) {
-            const ids = p[DB_COLUMNS.IGNORED_ID]!.split(',')
-            ids.forEach(id => {
-                if (!groupedPatients[key].ignoredIds.includes(id)) {
-                    groupedPatients[key].ignoredIds.push(id)
-                }
-            })
-        }
-
-        if (p[DB_COLUMNS.PHONE] && !groupedPatients[key].phones.includes(p[DB_COLUMNS.PHONE]!)) {
-            groupedPatients[key].phones.push(p[DB_COLUMNS.PHONE]!)
-        }
-
-        groupedPatients[key].records.push(p)
-    })
-
-    // Превращаем в массив и сортируем по алфавиту
-    const cardIndex = Object.values(groupedPatients).sort((a, b) => a.name.localeCompare(b.name))
+    const cardIndex = groupPatientsForCardIndex(patients)
 
     return (
         <ProtectedRoute>

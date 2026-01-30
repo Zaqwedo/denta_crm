@@ -8,6 +8,8 @@ import { handleDeletePatient } from '../actions'
 import { useAuth } from '../../contexts/AuthContext'
 import { List, RowComponentProps } from 'react-window'
 import { useDebounce } from 'use-debounce'
+import useSWR, { mutate } from 'swr'
+import { handleGetGroupedPatients } from '../actions'
 import { ClientInfo } from './types'
 import { ClientCard } from './components/ClientCard'
 import { FiltersPanel } from './components/FiltersPanel'
@@ -26,6 +28,20 @@ const normalizeName = (name: string) => name.toLowerCase().replace(/[^а-яё]/g
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const router = useRouter()
     const { user } = useAuth()
+
+    // SWR для работы с данными
+    const { data: currentData, error: swrError } = useSWR('card-index', async () => {
+        const res = await handleGetGroupedPatients()
+        if (res.success) return res.data
+        throw new Error(res.error)
+    }, {
+        fallbackData: initialData,
+        revalidateOnFocus: true,
+        revalidateOnReconnect: true
+    })
+
+    const data = currentData || initialData
+
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearchTerm] = useDebounce(searchTerm, 300)
     const [selectedClient, setSelectedClient] = useState<ClientInfo | null>(null)
@@ -69,7 +85,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const potentialDuplicates = useMemo(() => {
         const phoneToClients = new Map<string, ClientInfo[]>()
 
-        initialData.forEach(client => {
+        data.forEach(client => {
             client.phones.forEach(phone => {
                 const cleaned = phone.replace(/\D/g, '')
                 if (cleaned.length >= 10) {
@@ -99,11 +115,11 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         })
 
         return groups
-    }, [initialData])
+    }, [data])
 
     // Фильтрация
     const filteredData = useMemo(() => {
-        return initialData.filter(client => {
+        return data.filter(client => {
             // Поиск по ФИО или телефону
             const matchesSearch = debouncedSearchTerm === '' ||
                 client.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
@@ -128,32 +144,43 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
             return hasDoctor && hasNurse && matchesDate
         }).sort((a, b) => a.name.localeCompare(b.name))
-    }, [initialData, debouncedSearchTerm, selectedDoctor, selectedNurse, startDate, endDate])
+    }, [data, debouncedSearchTerm, selectedDoctor, selectedNurse, startDate, endDate])
 
     const doctors = useMemo(() => {
         const set = new Set<string>()
-        initialData.forEach(c => c.records.forEach(r => {
+        data.forEach(c => c.records.forEach(r => {
             if (r[DB_COLUMNS.DOCTOR]) set.add(r[DB_COLUMNS.DOCTOR] as string)
         }))
         return Array.from(set).sort()
-    }, [initialData])
+    }, [data])
 
     const nurses = useMemo(() => {
         const set = new Set<string>()
-        initialData.forEach(c => c.records.forEach(r => {
+        data.forEach(c => c.records.forEach(r => {
             if (r[DB_COLUMNS.NURSE]) set.add(r[DB_COLUMNS.NURSE] as string)
         }))
         return Array.from(set).sort()
-    }, [initialData])
+    }, [data])
 
     const handleEmojiSelect = async (newEmoji: string) => {
         if (!selectedClient) return
         setIsUpdating(true)
+
+        // Optimistic UI update
+        const updatedClient = { ...selectedClient, emoji: newEmoji }
+        const newData = data.map(c =>
+            (c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
+                ? updatedClient
+                : c
+        )
+
         try {
+            mutate('card-index', newData, false) // Обновляем локально без ревалидации
+            setSelectedClient(updatedClient)
             await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.EMOJI]: newEmoji })
-            setSelectedClient({ ...selectedClient, emoji: newEmoji })
-            router.refresh()
+            mutate('card-index') // Ревалидируем
         } catch (err) {
+            mutate('card-index') // Откатываем в случае ошибки
             alert('Ошибка при сохранении')
         } finally {
             setIsUpdating(false)
@@ -179,9 +206,8 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 [DB_COLUMNS.CREATED_BY]: user?.email || ''
             })
             setIsAddingRecord(false)
-            router.refresh()
-            // Обновляем текущего клиента (нужно перезагрузить данные)
-            alert('Запись добавлена. Обновите страницу для просмотра изменений.')
+            mutate('card-index')
+            alert('Запись добавлена.')
         } catch (err) {
             alert('Ошибка при добавлении записи')
         } finally {
@@ -190,21 +216,32 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     }
 
     const handleDeleteRecord = async (recordId: string) => {
+        if (!selectedClient) return
         setIsUpdating(true)
+
+        // Optimistic UI update
+        const updatedClient = {
+            ...selectedClient,
+            records: selectedClient.records.filter(r => r[DB_COLUMNS.ID] !== recordId)
+        }
+        const newData = data.map(c =>
+            (c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
+                ? updatedClient
+                : c
+        )
+
         try {
+            mutate('card-index', newData, false)
+            setSelectedClient(updatedClient)
             const result = await handleDeletePatient(recordId, user?.email || 'unknown')
             if (result.success) {
-                if (selectedClient) {
-                    setSelectedClient({
-                        ...selectedClient,
-                        records: selectedClient.records.filter(r => r[DB_COLUMNS.ID] !== recordId)
-                    })
-                }
-                router.refresh()
+                mutate('card-index')
             } else {
+                mutate('card-index')
                 alert('Ошибка при удалении: ' + result.error)
             }
         } catch (err) {
+            mutate('card-index')
             alert('Ошибка при удалении записи')
         } finally {
             setIsUpdating(false)
@@ -214,11 +251,22 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
     const handleSaveNotes = async () => {
         if (!selectedClient) return
         setIsUpdating(true)
+
+        // Optimistic UI update
+        const updatedClient = { ...selectedClient, notes: localNotes }
+        const newData = data.map(c =>
+            (c.name === selectedClient.name && c.birthDate === selectedClient.birthDate)
+                ? updatedClient
+                : c
+        )
+
         try {
+            mutate('card-index', newData, false)
+            setSelectedClient(updatedClient)
             await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.NOTES]: localNotes || undefined })
-            setSelectedClient({ ...selectedClient, notes: localNotes })
-            router.refresh()
+            mutate('card-index')
         } catch (err) {
+            mutate('card-index')
             alert('Ошибка при сохранении комментария')
         } finally {
             setIsUpdating(false)
@@ -232,7 +280,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 { name: target.name, birthDate: target.birthDate },
                 { name: source.name, birthDate: source.birthDate }
             )
-            router.refresh()
+            mutate('card-index')
             alert('Дубликат проигнорирован')
         } catch (err) {
             alert('Ошибка')
@@ -262,7 +310,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 emoji: target.emoji || source.emoji,
                 notes: (target.notes || '') + (source.notes ? '\n' + source.notes : '')
             })
-            router.refresh()
+            mutate('card-index')
             alert('Клиенты объединены')
         } catch (err) {
             alert('Ошибка объединения')
@@ -297,8 +345,16 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
 
     return (
         <div className="max-w-4xl mx-auto pb-32">
+            {swrError && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-2xl mb-4 text-sm font-bold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    Ошибка синхронизации данных. Попробуйте обновить страницу.
+                </div>
+            )}
             <div className="flex items-center justify-end mb-4 px-2">
-                <p className="text-gray-500 font-medium">Всего пациентов: <span className="text-blue-600 font-bold">{initialData.length}</span></p>
+                <p className="text-gray-500 font-medium">Всего пациентов: <span className="text-blue-600 font-bold">{data.length}</span></p>
             </div>
 
             <div className="relative mb-6">

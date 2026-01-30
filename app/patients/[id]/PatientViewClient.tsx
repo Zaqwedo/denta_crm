@@ -10,32 +10,9 @@ import { PATIENT_STATUSES } from '../../../lib/constants'
 import { useConstants } from '../../hooks/useConstants'
 import { formatTime } from '@/lib/utils'
 import { ConfirmChangesModal } from '../ConfirmChangesModal'
+import { formatPhone, formatBirthDate, convertToISODate, convertISOToDisplay } from '@/lib/formatters'
 
-// Функция для форматирования даты рождения DD.MM.YYYY
-function formatBirthDate(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 8)
-  const day = digits.slice(0, 2)
-  const month = digits.slice(2, 4)
-  const year = digits.slice(4, 8)
-
-  if (digits.length <= 2) return day
-  if (digits.length <= 4) return `${day}.${month}`
-  return `${day}.${month}.${year}`
-}
-
-// Функция для конвертации из DD.MM.YYYY в YYYY-MM-DD
-function convertToISODate(dateStr: string): string {
-  if (!dateStr || dateStr.length < 10) return ''
-  const [day, month, year] = dateStr.split('.')
-  return `${year}-${month}-${day}`
-}
-
-// Функция для конвертации из YYYY-MM-DD в DD.MM.YYYY
-function convertISOToDisplay(isoStr: string): string {
-  if (!isoStr || !isoStr.includes('-')) return isoStr || ''
-  const [year, month, day] = isoStr.split('-')
-  return `${day}.${month}.${year}`
-}
+// Удалено так как теперь в @/lib/formatters
 
 interface PatientViewClientProps {
   patient: Record<string, any> | null
@@ -100,7 +77,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
   // Исходные данные для сравнения (будет обновляться в useEffect)
   const [initialData, setInitialData] = useState({
     name: initialPatient?.name || '',
-    phone: initialPatient?.phone || '',
+    phone: formatPhone(initialPatient?.phone || ''),
     date: formattedDate,
     time: formatTime(initialPatient?.time) || '',
     doctor: initialPatient?.doctor || '',
@@ -159,7 +136,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       }
 
       setInitialData(newInitialData)
-      setFormData(newInitialData)
+      setFormData({ ...newInitialData, phone: formatPhone(newInitialData.phone) })
       setBirthDateDisplay(initialPatient.birthDate ? convertISOToDisplay(initialPatient.birthDate) : '')
       setAppointmentDateDisplay(initialPatient.date ? convertISOToDisplay(initialPatient.date) : '')
       setShowConfirmModal(false)
@@ -190,7 +167,22 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       setFormData({ ...formData, date: '' })
     }
   }
+  function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value
+    if (value.length < 4) {
+      setFormData({ ...formData, phone: '+7 (' })
+      return
+    }
+    const formatted = formatPhone(value)
+    setFormData({ ...formData, phone: formatted })
+  }
 
+  function handlePhoneKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    // Разрешаем удаление, но не позволяем удалить базовую часть
+    if (e.key === 'Backspace' && formData.phone.length <= 4) {
+      e.preventDefault()
+    }
+  }
   // Функция для проверки наличия изменений
   const hasChanges = () => {
     return (
@@ -422,11 +414,13 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
                   type="tel"
                   name="phone"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={handlePhoneChange}
+                  onKeyDown={handlePhoneKeyDown}
                   required
                   className="w-full max-w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent box-border cursor-text"
                   style={{ width: '100%' }}
                   placeholder="+7 (999) 123-45-67"
+                  maxLength={18}
                 />
               </div>
 
