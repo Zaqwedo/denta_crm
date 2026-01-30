@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { PatientData, updatePatientProfile, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
+import { PatientData, updatePatientProfile, mergePatients, ignoreDuplicate, addPatient } from '@/lib/supabase-db'
 import { formatTime } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET } from '@/lib/constants'
+import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET, PATIENT_STATUSES } from '@/lib/constants'
 
 interface ClientInfo {
     name: string
@@ -79,6 +79,32 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         chosenName: string,
         chosenBirthDate: string | null
     } | null>(null)
+
+    const [isAddingRecord, setIsAddingRecord] = useState(false)
+    const [newRecord, setNewRecord] = useState({
+        date: new Date().toISOString().split('T')[0],
+        time: '',
+        doctor: '',
+        nurse: '',
+        teeth: '',
+        comment: '',
+        status: 'Ожидает'
+    })
+
+    // Синхронизация selectedClient с новыми данными (например после добавления записи)
+    useEffect(() => {
+        if (selectedClient && initialData) {
+            const updated = initialData.find(c =>
+                c.name === selectedClient.name &&
+                c.birthDate === selectedClient.birthDate
+            )
+            // Обновляем только если изменилось количество записей
+            if (updated && updated.records.length !== selectedClient.records.length) {
+                console.log('Syncing selected client data...')
+                setSelectedClient(prev => prev ? { ...prev, records: updated.records } : null)
+            }
+        }
+    }, [initialData])
 
     useEffect(() => {
         if (selectedClient) {
@@ -172,6 +198,52 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         console.log('Найдено групп дублей:', finalGroups.length);
         return finalGroups
     }, [initialData])
+
+    const handleAddRecord = async () => {
+        if (!selectedClient) return
+
+        // Валидация
+        if (!newRecord.date) {
+            alert('Выберите дату')
+            return
+        }
+
+        setIsUpdating(true)
+        try {
+            await addPatient({
+                [DB_COLUMNS.NAME]: selectedClient.name,
+                [DB_COLUMNS.PHONE]: selectedClient.phones[0] || '',
+                [DB_COLUMNS.BIRTH_DATE]: selectedClient.birthDate || undefined,
+                [DB_COLUMNS.EMOJI]: selectedClient.emoji || undefined,
+                [DB_COLUMNS.NOTES]: selectedClient.notes || undefined,
+                [DB_COLUMNS.DATE]: newRecord.date,
+                [DB_COLUMNS.TIME]: newRecord.time || undefined,
+                [DB_COLUMNS.DOCTOR]: newRecord.doctor,
+                [DB_COLUMNS.NURSE]: newRecord.nurse,
+                [DB_COLUMNS.TEETH]: newRecord.teeth,
+                [DB_COLUMNS.COMMENT]: newRecord.comment,
+                [DB_COLUMNS.STATUS]: newRecord.status || 'Ожидает'
+            })
+
+            setIsAddingRecord(false)
+            setNewRecord({
+                date: new Date().toISOString().split('T')[0],
+                time: '',
+                doctor: '',
+                nurse: '',
+                teeth: '',
+                comment: '',
+                status: 'Ожидает'
+            })
+
+            router.refresh()
+        } catch (err) {
+            alert('Ошибка при создании записи')
+            console.error(err)
+        } finally {
+            setIsUpdating(false)
+        }
+    }
 
     const startMerge = (source: ClientInfo, target: ClientInfo) => {
         const hasConflict = normalizeName(source.name) !== normalizeName(target.name) || source.birthDate !== target.birthDate
@@ -396,10 +468,135 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                     </div>
                 </div>
 
+                <button
+                    onClick={() => setIsAddingRecord(true)}
+                    className="w-full py-4 mb-6 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Добавить запись
+                </button>
+
+                {isAddingRecord && (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200 text-left">
+                        <div className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                            <div className="p-6 bg-blue-600 text-white shrink-0">
+                                <h4 className="font-bold text-xl mb-1">Новая запись</h4>
+                                <p className="text-blue-100 text-sm">Добавление посещения для {selectedClient.name}</p>
+                            </div>
+
+                            <div className="p-6 space-y-4 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Дата</label>
+                                        <input
+                                            type="date"
+                                            value={newRecord.date}
+                                            onChange={e => setNewRecord({ ...newRecord, date: e.target.value })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Время</label>
+                                        <input
+                                            type="time"
+                                            value={newRecord.time}
+                                            onChange={e => setNewRecord({ ...newRecord, time: e.target.value })}
+                                            className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Врач</label>
+                                    <select
+                                        value={newRecord.doctor}
+                                        onChange={e => setNewRecord({ ...newRecord, doctor: e.target.value })}
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                                    >
+                                        <option value="">Не выбран</option>
+                                        {doctors.map(d => <option key={d} value={d}>{d}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Медсестра</label>
+                                    <select
+                                        value={newRecord.nurse}
+                                        onChange={e => setNewRecord({ ...newRecord, nurse: e.target.value })}
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                                    >
+                                        <option value="">Не выбрана</option>
+                                        {nurses.map(n => <option key={n} value={n}>{n}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Статус</label>
+                                    <select
+                                        value={newRecord.status}
+                                        onChange={e => setNewRecord({ ...newRecord, status: e.target.value })}
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                                    >
+                                        {PATIENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Зубы</label>
+                                    <input
+                                        type="text"
+                                        value={newRecord.teeth}
+                                        onChange={e => setNewRecord({ ...newRecord, teeth: e.target.value })}
+                                        placeholder="Например: 46, 47"
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] text-gray-400 uppercase font-bold mb-2">Комментарий к приему</label>
+                                    <textarea
+                                        value={newRecord.comment}
+                                        onChange={e => setNewRecord({ ...newRecord, comment: e.target.value })}
+                                        placeholder="Жалобы, диагноз или выполненные работы..."
+                                        className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl text-sm h-24 resize-none"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="p-6 bg-gray-50 flex gap-3 shrink-0">
+                                <button
+                                    onClick={() => setIsAddingRecord(false)}
+                                    className="flex-1 py-4 text-gray-500 font-bold bg-white border border-gray-200 rounded-2xl active:scale-95 transition-all"
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    onClick={handleAddRecord}
+                                    disabled={isUpdating}
+                                    className="flex-[2] py-4 text-white font-bold bg-blue-600 rounded-2xl shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                                >
+                                    {isUpdating ? 'Сохранение...' : 'Сохранить'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <h3 className="text-xl font-bold text-gray-900 mb-4 px-2 text-left">История посещений</h3>
                 <div className="space-y-4">
                     {selectedClient.records
-                        .sort((a, b) => ((b[DB_COLUMNS.DATE] as string) || '').localeCompare((a[DB_COLUMNS.DATE] as string) || ''))
+                        .sort((a, b) => {
+                            const dateA = (a[DB_COLUMNS.DATE] as string) || ''
+                            const dateB = (b[DB_COLUMNS.DATE] as string) || ''
+                            if (dateA !== dateB) {
+                                return dateB.localeCompare(dateA) // Сначала новые даты
+                            }
+                            const timeA = (a[DB_COLUMNS.TIME] as string) || ''
+                            const timeB = (b[DB_COLUMNS.TIME] as string) || ''
+                            return timeB.localeCompare(timeA) // Сначала позднее время
+                        })
                         .map((record, index) => (
                             <div
                                 key={record[DB_COLUMNS.ID] || index}
