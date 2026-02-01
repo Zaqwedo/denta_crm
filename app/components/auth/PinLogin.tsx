@@ -60,7 +60,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
 
     return (
         <div className="flex flex-col items-center bg-transparent max-w-sm mx-auto animate-in fade-in duration-500">
-            <div className="mb-8 text-center text-gray-900 dark:text-white">
+            <div className="mb-6 text-center text-gray-900 dark:text-white">
                 <div className="w-14 h-14 bg-blue-600/10 dark:bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-600/20 dark:border-white/20">
                     <Lock size={24} className="text-blue-600 dark:text-white" />
                 </div>
@@ -69,7 +69,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
             </div>
 
             {/* Индикаторы ввода */}
-            <div className="flex gap-4 mb-10">
+            <div className="flex gap-4 mb-6">
                 {[0, 1, 2, 3].map((i) => (
                     <div
                         key={i}
@@ -95,7 +95,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
                 disabled={loading}
             />
 
-            <div className="mt-12 flex flex-col gap-4 w-full px-8">
+            <div className="mt-8 flex flex-col gap-4 w-full px-8">
                 <button
                     onClick={onSwitchToPassword}
                     className="flex items-center justify-center gap-2 text-gray-400 hover:text-blue-600 dark:text-white/70 dark:hover:text-white font-medium py-2 transition-colors text-sm"
