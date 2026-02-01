@@ -27,10 +27,10 @@ export async function hashPin(pin: string): Promise<string> {
     const derivedKey = await crypto.subtle.deriveBits(
         {
             name: 'PBKDF2',
-            salt: salt,
+            salt: salt as any,
             iterations: ITERATIONS,
             hash: 'SHA-512'
-        },
+        } as any,
         baseKey,
         KEY_LENGTH * 8
     );
@@ -65,10 +65,10 @@ export async function verifyPin(pin: string, storedHash: string): Promise<boolea
         const derivedKey = await crypto.subtle.deriveBits(
             {
                 name: 'PBKDF2',
-                salt: salt,
+                salt: salt as any,
                 iterations: iterations,
                 hash: 'SHA-512'
-            },
+            } as any,
             baseKey,
             KEY_LENGTH * 8
         );
@@ -82,8 +82,9 @@ export async function verifyPin(pin: string, storedHash: string): Promise<boolea
 }
 
 // Вспомогательные функции
-function bufToHex(buffer: ArrayBuffer): string {
-    return Array.from(new Uint8Array(buffer))
+function bufToHex(buffer: ArrayBuffer | Uint8Array): string {
+    const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    return Array.from(uint8)
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
 }
