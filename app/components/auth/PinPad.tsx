@@ -23,9 +23,9 @@ export const PinPad: React.FC<PinPadProps> = ({ onNumberClick, onDeleteClick, di
                             key="delete"
                             onClick={onDeleteClick}
                             disabled={disabled}
-                            className="flex items-center justify-center h-16 w-16 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 active:scale-90 transition-all duration-150 disabled:opacity-50"
+                            className="flex items-center justify-center h-14 w-14 rounded-full text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-90 transition-all duration-150 disabled:opacity-50"
                         >
-                            <Delete size={24} />
+                            <Delete size={22} />
                         </button>
                     )
                 }
@@ -35,7 +35,7 @@ export const PinPad: React.FC<PinPadProps> = ({ onNumberClick, onDeleteClick, di
                         key={item}
                         onClick={() => onNumberClick(item)}
                         disabled={disabled}
-                        className="flex items-center justify-center h-16 w-16 rounded-full bg-white border border-gray-100 shadow-sm text-2xl font-semibold text-gray-700 hover:border-blue-400 hover:text-blue-600 active:scale-95 active:bg-blue-50 transition-all duration-150 disabled:opacity-50"
+                        className="flex items-center justify-center h-14 w-14 rounded-full bg-white dark:bg-gray-700 border border-gray-100 dark:border-gray-600 shadow-sm text-2xl font-bold text-gray-700 dark:text-white hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 active:scale-95 active:bg-blue-50 dark:active:bg-blue-900/30 transition-all duration-150 disabled:opacity-50"
                     >
                         {item}
                     </button>
