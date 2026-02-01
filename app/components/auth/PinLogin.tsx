@@ -8,9 +8,10 @@ interface PinLoginProps {
     email: string
     onSuccess: (userData: any) => void
     onSwitchToPassword: () => void
+    hideHeader?: boolean
 }
 
-export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchToPassword }) => {
+export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchToPassword, hideHeader = false }) => {
     const [pin, setPin] = useState('')
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
@@ -60,13 +61,15 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
 
     return (
         <div className="flex flex-col items-center bg-transparent max-w-sm mx-auto animate-in fade-in duration-500">
-            <div className="mb-6 text-center text-gray-900 dark:text-white">
-                <div className="w-14 h-14 bg-blue-600/10 dark:bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-600/20 dark:border-white/20">
-                    <Lock size={24} className="text-blue-600 dark:text-white" />
+            {!hideHeader && (
+                <div className="mb-6 text-center text-gray-900 dark:text-white">
+                    <div className="w-14 h-14 bg-blue-600/10 dark:bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-600/20 dark:border-white/20">
+                        <Lock size={24} className="text-blue-600 dark:text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold mb-1">Введите PIN</h2>
+                    <p className="text-gray-500 dark:text-white/60 text-sm font-medium">{email}</p>
                 </div>
-                <h2 className="text-2xl font-bold mb-1">Введите PIN</h2>
-                <p className="text-gray-500 dark:text-white/60 text-sm font-medium">{email}</p>
-            </div>
+            )}
 
             {/* Индикаторы ввода */}
             <div className="flex gap-4 mb-6">
