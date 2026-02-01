@@ -27,6 +27,9 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
+import ScreenLock from './components/auth/ScreenLock'
+import PinSetupModal from './components/auth/PinSetupModal'
+
 export default function RootLayout({
   children,
 }: {
@@ -38,6 +41,8 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             {children}
+            <ScreenLock />
+            <PinSetupModal />
             <GlobalToast />
             <Analytics />
             <SpeedInsights />

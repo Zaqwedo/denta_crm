@@ -25,7 +25,7 @@ interface SideMenuProps {
 export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
     const pathname = usePathname()
     const router = useRouter()
-    const { logout } = useAuth()
+    const { logout, setIsPinSetupOpen } = useAuth()
 
     const menuItems = [
         { name: 'Главная', href: '/', icon: Home },
@@ -122,7 +122,17 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
                 </div>
 
                 {/* Footer */}
-                <div className="p-8 border-t border-gray-50">
+                <div className="p-8 border-t border-gray-50 space-y-2">
+                    <button
+                        onClick={() => {
+                            onClose()
+                            setIsPinSetupOpen(true)
+                        }}
+                        className="w-full flex items-center gap-4 p-4 rounded-2xl text-blue-600 font-bold hover:bg-blue-50 transition-colors"
+                    >
+                        <Shield className="w-5 h-5" />
+                        <span>Безопасность (PIN)</span>
+                    </button>
                     <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-4 p-4 rounded-2xl text-red-500 font-bold hover:bg-red-50 transition-colors"

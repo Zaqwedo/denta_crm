@@ -7,6 +7,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { SideMenu } from '@/app/components/SideMenu'
 import { Header } from './components/Header'
 import { ThemeToggle } from './components/ThemeToggle'
+import { LockToggle } from './components/auth/LockToggle'
 import { ToastManager } from './patients/Toast'
 import {
     User as UserIcon,
@@ -18,13 +19,14 @@ import {
     ArrowRight,
     Check,
     Edit2,
+    Lock,
     LogOut
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function DashboardClient() {
-    const { user, login, logout } = useAuth()
+    const { user, login, logout, lock } = useAuth()
     const router = useRouter()
     const [stats, setStats] = useState<{
         isAdmin: boolean
@@ -97,9 +99,10 @@ export default function DashboardClient() {
                         title={<>Добрый день,<br />{displayName}!</>}
                     />
 
-                    {/* Theme Toggle */}
-                    <div className="flex justify-center mb-8">
+                    {/* Controls */}
+                    <div className="flex justify-center items-center gap-3 mb-8">
                         <ThemeToggle />
+                        <LockToggle />
                     </div>
 
                     {/* Account Card */}
@@ -117,14 +120,6 @@ export default function DashboardClient() {
                                         <p className="text-lg font-bold text-gray-900 dark:text-white truncate">{user?.email}</p>
                                     </div>
                                 </div>
-
-                                <button
-                                    onClick={handleLogout}
-                                    className="p-3 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all"
-                                    title="Выйти"
-                                >
-                                    <LogOut className="w-6 h-6" />
-                                </button>
                             </div>
 
                             <div className="flex items-center gap-3 py-3 px-4 bg-gray-50 dark:bg-gray-700/50 rounded-2xl border border-gray-100 dark:border-gray-600 w-full group cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-700 transition-all"

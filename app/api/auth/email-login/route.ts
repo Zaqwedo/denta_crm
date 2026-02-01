@@ -210,6 +210,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       isAdmin: false,
+      needsPinSetup: !user.pin_code_hash,
       user: {
         id: user.id,
         first_name: user.first_name || email.split('@')[0],

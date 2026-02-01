@@ -19,8 +19,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Проверяем, является ли запрос к защищенным маршрутам
-  const protectedPaths = ['/patients', '/calendar', '/new']
-  const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  const protectedPaths = ['/', '/patients', '/calendar', '/new', '/patients/card-index', '/patients/changes']
+  const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/'))
 
   if (isProtectedPath) {
     // Пропускаем проверку для OAuth callback redirects

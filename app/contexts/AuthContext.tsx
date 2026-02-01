@@ -25,9 +25,13 @@ interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  authType: 'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null
+  isLocked: boolean
+  isPinSetupOpen: boolean
+  setIsPinSetupOpen: (isOpen: boolean) => void
   login: (user: User, authType?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => void
   logout: () => void
+  lock: () => void
+  unlock: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -35,8 +39,58 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isLocked, setIsLocked] = useState(false)
+  const [isPinSetupOpen, setIsPinSetupOpen] = useState(false)
   const [authType, setAuthType] = useState<'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null>(null)
   const [allowedEmails, setAllowedEmails] = useState<string[]>([])
+
+  const lock = useCallback(() => {
+    setIsLocked(true)
+    sessionStorage.setItem('denta_is_locked', 'true')
+  }, [])
+
+  const unlock = useCallback(() => {
+    setIsLocked(false)
+    sessionStorage.setItem('denta_is_locked', 'false')
+    sessionStorage.setItem('denta_unlocked_in_session', 'true')
+  }, [])
+
+  const logout = useCallback(async () => {
+    setUser(null)
+    setAuthType(null)
+    setIsLocked(false)
+    localStorage.removeItem('denta_user')
+    localStorage.removeItem('denta_auth_timestamp')
+    localStorage.removeItem('denta_auth_type')
+    localStorage.removeItem('denta_last_email')
+    localStorage.removeItem('denta_has_pin')
+    localStorage.removeItem('denta_pin_skipped')
+    sessionStorage.removeItem('denta_is_locked')
+    sessionStorage.removeItem('denta_unlocked_in_session')
+
+    // Выходим из Supabase
+    await supabase.auth.signOut()
+  }, [])
+
+  const login = useCallback((userData: User, authTypeParam?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
+    const finalAuthType = authTypeParam || 'email'
+    const isAdmin = userData.username === 'admin' || userData.first_name === 'Admin'
+
+    if (!isAdmin && finalAuthType === 'email' && allowedEmails.length > 0) {
+      const userEmail = (userData.username || userData.email || '').toLowerCase().trim()
+      const normalizedAllowedEmails = allowedEmails.map(e => e.toLowerCase().trim())
+      console.log('Client-side email whitelist check (info only):', {
+        userEmail,
+        isInList: normalizedAllowedEmails.includes(userEmail)
+      })
+    }
+
+    setUser(userData)
+    setAuthType(finalAuthType)
+    localStorage.setItem('denta_user', JSON.stringify(userData))
+    localStorage.setItem('denta_auth_timestamp', Date.now().toString())
+    localStorage.setItem('denta_auth_type', finalAuthType)
+  }, [allowedEmails])
 
   // Загружаем белые списки для ВСЕХ провайдеров (email, google, yandex)
   useEffect(() => {
@@ -113,6 +167,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const savedTimestamp = localStorage.getItem('denta_auth_timestamp')
         const savedAuthType = localStorage.getItem('denta_auth_type') as 'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null
 
+        // Проверяем, был ли экран заблокирован в этой сессии
+        const sessionLocked = sessionStorage.getItem('denta_is_locked') === 'true'
+        const hasPin = localStorage.getItem('denta_has_pin') === 'true'
+
         if (savedUser && savedTimestamp) {
           const userData = JSON.parse(savedUser)
           const timestamp = parseInt(savedTimestamp)
@@ -120,11 +178,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // Сессия действительна 7 дней
           if (now - timestamp < 7 * 24 * 60 * 60 * 1000) {
-            // Для демо режима принимаем сохраненную сессию
             setUser(userData)
             setAuthType(savedAuthType || 'email')
+
+            // Если есть PIN и сессия помечена как заблокированная (или это новое открытие вкладки)
+            if (hasPin) {
+              // Если это новое открытие вкладки (нет флага разблокировки в sessionStorage), блокируем
+              const isUnlockedInSession = sessionStorage.getItem('denta_unlocked_in_session') === 'true'
+              if (sessionLocked || !isUnlockedInSession) {
+                setIsLocked(true)
+              }
+            }
           } else {
-            // Сессия истекла
             logout()
           }
         }
@@ -139,56 +204,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth()
   }, [])
 
-  const login = useCallback((userData: User, authTypeParam?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
-    const finalAuthType = authTypeParam || 'email'
+  // Автоблокировка при бездействии
+  useEffect(() => {
+    if (!user || isLocked) return
 
-    // Проверяем, является ли пользователь админом (по username или first_name)
-    const isAdmin = userData.username === 'admin' || userData.first_name === 'Admin'
+    let timeoutId: NodeJS.Timeout
+    const INACTIVITY_TIME = 10 * 60 * 1000 // 10 минут
 
-    // Проверка whitelist теперь выполняется на сервере в /api/auth/email-login
-    // Здесь оставляем только логирование для отладки
-    if (!isAdmin && finalAuthType === 'email' && allowedEmails.length > 0) {
-      const userEmail = (userData.username || userData.email || '').toLowerCase().trim()
-      const normalizedAllowedEmails = allowedEmails.map(e => e.toLowerCase().trim())
-
-      console.log('Client-side email whitelist check (info only):', {
-        userEmail,
-        allowedEmails: normalizedAllowedEmails,
-        isInList: normalizedAllowedEmails.includes(userEmail),
-        allowedEmailsCount: normalizedAllowedEmails.length
-      })
-
-      // Не блокируем на клиенте - проверка уже выполнена на сервере
-      // Но логируем для отладки
+    const resetTimer = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        const hasPin = localStorage.getItem('denta_has_pin') === 'true'
+        if (hasPin) {
+          lock()
+        }
+      }, INACTIVITY_TIME)
     }
 
-    setUser(userData)
-    setAuthType(finalAuthType)
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
+    events.forEach(event => document.addEventListener(event, resetTimer))
 
-    // Сохраняем в localStorage с указанием типа авторизации
-    localStorage.setItem('denta_user', JSON.stringify(userData))
-    localStorage.setItem('denta_auth_timestamp', Date.now().toString())
-    localStorage.setItem('denta_auth_type', finalAuthType)
-  }, [allowedEmails])
+    resetTimer()
 
-  const logout = useCallback(async () => {
-    setUser(null)
-    setAuthType(null)
-    localStorage.removeItem('denta_user')
-    localStorage.removeItem('denta_auth_timestamp')
-    localStorage.removeItem('denta_auth_type')
-
-    // Выходим из Supabase
-    await supabase.auth.signOut()
-  }, [])
+    return () => {
+      clearTimeout(timeoutId)
+      events.forEach(event => document.removeEventListener(event, resetTimer))
+    }
+  }, [user, isLocked, lock])
 
   const value = {
     user,
     isAuthenticated: !!user,
     isLoading,
+    isLocked,
+    isPinSetupOpen,
+    setIsPinSetupOpen,
     authType,
     login,
-    logout
+    logout,
+    lock,
+    unlock
   }
 
   return (

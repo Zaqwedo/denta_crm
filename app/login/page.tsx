@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../contexts/AuthContext'
+import { PinLogin } from '../components/auth/PinLogin'
+import { PinSetup } from '../components/auth/PinSetup'
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -19,15 +21,34 @@ export default function LoginPage() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [loginMethod, setLoginMethod] = useState<'password' | 'pin'>('password')
+  const [showPinSetup, setShowPinSetup] = useState(false)
+  const [savedEmail, setSavedEmail] = useState<string | null>(null)
+
   const { login, isAuthenticated, isLoading: authLoading } = useAuth()
   const router = useRouter()
 
+  // Проверяем наличие сохраненного email и флага установленного PIN
+  useEffect(() => {
+    const lastEmail = localStorage.getItem('denta_last_email')
+    const hasPin = localStorage.getItem('denta_has_pin') === 'true'
+
+    if (lastEmail && hasPin) {
+      setSavedEmail(lastEmail)
+      setLoginMethod('pin')
+      setEmail(lastEmail)
+    } else {
+      setLoginMethod('password')
+    }
+  }, [])
+
   // Автоматический редирект, если пользователь уже авторизован
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
+    // Если пользователь авторизован, но ему нужно настроить PIN, не редиректим
+    if (!authLoading && isAuthenticated && !showPinSetup) {
       router.push('/')
     }
-  }, [isAuthenticated, authLoading, router])
+  }, [isAuthenticated, authLoading, router, showPinSetup])
 
   // Проверяем ошибки из URL
   useEffect(() => {
@@ -106,15 +127,31 @@ export default function LoginPage() {
       }
 
       if (response.ok && data.success) {
-        if (data.isAdmin) {
-          login({ id: 1, first_name: 'Admin', username: 'admin', last_name: '' }, 'email')
-        } else {
-          login(data.user, 'email')
+        // Сохраняем email для последующего входа по PIN
+        if (email.trim()) {
+          const lowerEmail = email.trim().toLowerCase()
+          localStorage.setItem('denta_last_email', lowerEmail)
+
+          // Если PIN уже установлен в базе данных, запоминаем это на устройстве
+          if (!data.needsPinSetup) {
+            localStorage.setItem('denta_has_pin', 'true')
+          }
         }
-        // КРИТИЧНО: Принудительно обновляем страницу для загрузки данных с правильными правами доступа
-        // Это гарантирует, что закешированные данные от предыдущего пользователя не будут использованы
-        router.refresh()
-        router.push('/')
+
+        const user = data.isAdmin
+          ? { id: 1, first_name: 'Admin', username: 'admin', last_name: '' }
+          : data.user
+
+        // Проверяем, нужно ли устанавливать PIN (например, если нет pin_code_hash)
+        // В реальном приложении это поле должно приходить из API
+        if (data.needsPinSetup) {
+          login(user, 'email')
+          setShowPinSetup(true)
+        } else {
+          login(user, 'email')
+          router.refresh()
+          router.push('/')
+        }
       } else {
         setError(data.error || 'Ошибка входа')
       }
@@ -236,7 +273,31 @@ export default function LoginPage() {
             </div>
           )}
 
-          {!isRegistering ? (
+          {showPinSetup ? (
+            <div className="bg-white rounded-[32px] p-2 shadow-2xl">
+              <PinSetup
+                onComplete={() => {
+                  localStorage.setItem('denta_has_pin', 'true')
+                  router.push('/')
+                }}
+                onSkip={() => {
+                  localStorage.setItem('denta_pin_skipped', 'true')
+                  router.push('/')
+                }}
+              />
+            </div>
+          ) : loginMethod === 'pin' && savedEmail ? (
+            <div className="bg-white dark:bg-gray-800 rounded-[24px] p-8 shadow-2xl border border-gray-100 dark:border-gray-700">
+              <PinLogin
+                email={savedEmail}
+                onSuccess={(userData) => {
+                  login(userData, 'email')
+                  router.push('/')
+                }}
+                onSwitchToPassword={() => setLoginMethod('password')}
+              />
+            </div>
+          ) : !isRegistering ? (
             <>
 
               {/* Кнопка Google OAuth - основной способ входа */}
@@ -420,107 +481,13 @@ export default function LoginPage() {
       </div>
 
       {/* Модальное окно смены пароля */}
-      {showChangePassword && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Смена пароля</h2>
-              <button
-                onClick={() => {
-                  setShowChangePassword(false)
-                  setError(null)
-                  setSuccess(null)
-                  setChangePasswordEmail('')
-                  setCurrentPassword('')
-                  setNewPassword('')
-                  setConfirmNewPassword('')
-                }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
-                {error}
-              </div>
-            )}
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4">
-                {success}
-              </div>
-            )}
-
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label htmlFor="changePasswordEmail" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  id="changePasswordEmail"
-                  type="email"
-                  autoComplete="email"
-                  value={changePasswordEmail}
-                  onChange={(e) => setChangePasswordEmail(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Текущий пароль
-                </label>
-                <input
-                  id="currentPassword"
-                  type="password"
-                  autoComplete="current-password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Новый пароль (минимум 6 символов)
-                </label>
-                <input
-                  id="newPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  required
-                />
-              </div>
-              <div>
-                <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Повторите новый пароль
-                </label>
-                <input
-                  id="confirmNewPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmNewPassword}
-                  onChange={(e) => setConfirmNewPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                  required
-                />
-              </div>
-              <div className="flex gap-3">
+      {
+        showChangePassword && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Смена пароля</h2>
                 <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                >
-                  {isLoading ? 'Смена пароля...' : 'Сменить пароль'}
-                </button>
-                <button
-                  type="button"
                   onClick={() => {
                     setShowChangePassword(false)
                     setError(null)
@@ -530,16 +497,112 @@ export default function LoginPage() {
                     setNewPassword('')
                     setConfirmNewPassword('')
                   }}
-                  className="px-6 bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold py-3 rounded-xl transition-all"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  Отмена
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-    </div>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4">
+                  {success}
+                </div>
+              )}
+
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <div>
+                  <label htmlFor="changePasswordEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                    Email
+                  </label>
+                  <input
+                    id="changePasswordEmail"
+                    type="email"
+                    autoComplete="email"
+                    value={changePasswordEmail}
+                    onChange={(e) => setChangePasswordEmail(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Текущий пароль
+                  </label>
+                  <input
+                    id="currentPassword"
+                    type="password"
+                    autoComplete="current-password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Новый пароль (минимум 6 символов)
+                  </label>
+                  <input
+                    id="newPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="confirmNewPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    Повторите новый пароль
+                  </label>
+                  <input
+                    id="confirmNewPassword"
+                    type="password"
+                    autoComplete="new-password"
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                    required
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                  >
+                    {isLoading ? 'Смена пароля...' : 'Сменить пароль'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChangePassword(false)
+                      setError(null)
+                      setSuccess(null)
+                      setChangePasswordEmail('')
+                      setCurrentPassword('')
+                      setNewPassword('')
+                      setConfirmNewPassword('')
+                    }}
+                    className="px-6 bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold py-3 rounded-xl transition-all"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      }
+
+    </div >
   )
 }

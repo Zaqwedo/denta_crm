@@ -61,14 +61,16 @@ export const supabase = createClient(
  * Необходимо вызывать перед запросами к БД в server-side коде
  */
 let anonymousSessionPromise: Promise<void> | null = null
-let sessionChecked = false
+let isAuthDisabled = false
 
 export async function ensureAnonymousSession(): Promise<void> {
+  if (isAuthDisabled) return
+
   // Проверяем наличие переменных окружения перед попыткой установить сессию
   if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'https://placeholder.supabase.co') {
     // Не пытаемся устанавливать сессию, если переменные не настроены
     // Это может произойти во время build time или если переменные не установлены в Vercel
-    return Promise.resolve()
+    return
   }
 
   // Если сессия уже устанавливается, ждем её
@@ -76,35 +78,23 @@ export async function ensureAnonymousSession(): Promise<void> {
     return anonymousSessionPromise
   }
 
-  // Проверяем, есть ли уже активная сессия (только один раз)
-  if (!sessionChecked) {
-    sessionChecked = true
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session) {
-      return Promise.resolve()
-    }
-  }
-
   // Устанавливаем анонимную сессию
   anonymousSessionPromise = (async () => {
     try {
+      // Создаем контроллер для таймаута, чтобы не ждать 10 секунд
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 2000)
+
       const { data, error } = await supabase.auth.signInAnonymously()
+      clearTimeout(timeoutId)
 
       if (error) {
-        // Если анонимная аутентификация отключена, логируем и продолжаем без ошибки
-        if (error.message?.includes('Anonymous sign-ins are disabled') ||
-          (error as any)?.code === 'anonymous_provider_disabled' ||
-          (error as any)?.status === 422) {
-          console.warn('⚠️  Анонимная аутентификация отключена в Supabase')
-          console.warn('📋 Инструкция: Включите в Supabase Dashboard → Authentication → Settings → Enable Anonymous Sign-ins')
-          // Не бросаем ошибку, просто возвращаемся - возможно RLS политики разрешают доступ
-          anonymousSessionPromise = null
+        // Если анонимная аутентификация отключена
+        if (error.message?.includes('Anonymous sign-ins are disabled') || (error as any)?.status === 422) {
+          isAuthDisabled = true // Запоминаем, что это не работает
+          console.warn('⚠️  Анонимная аутентификация отключена. Это нормально, если RLS настроен иначе.')
           return
         }
-
-        console.error('❌ Ошибка установки анонимной сессии Supabase:', error)
-        // Сбрасываем promise при ошибке, чтобы можно было повторить
-        anonymousSessionPromise = null
         throw error
       }
 
@@ -112,20 +102,14 @@ export async function ensureAnonymousSession(): Promise<void> {
         console.log('✅ Анонимная сессия Supabase установлена для RLS')
       }
     } catch (error: any) {
-      // Если это ошибка об отключенной анонимной аутентификации, просто продолжаем
-      if (error?.message?.includes('Anonymous sign-ins are disabled') ||
-        error?.code === 'anonymous_provider_disabled' ||
-        error?.status === 422) {
-        console.warn('⚠️  Анонимная аутентификация отключена в Supabase')
-        console.warn('📋 Инструкция: Включите в Supabase Dashboard → Authentication → Settings → Enable Anonymous Sign-ins')
-        anonymousSessionPromise = null
-        return
+      isAuthDisabled = true // При любой ошибке (таймаут, сеть) больше не пытаемся
+      if (error.name === 'AbortError') {
+        console.warn('⚠️  Auth disabled or unreachable, continuing without anonymous session (Timeout)')
+      } else {
+        console.warn('⚠️  Auth disabled or unreachable, continuing without anonymous session (Error:', error.message || error, ')')
       }
-
-      console.error('❌ Критическая ошибка: не удалось установить анонимную сессию Supabase:', error)
-      // Сбрасываем promise при ошибке
+    } finally {
       anonymousSessionPromise = null
-      throw error
     }
   })()
 
