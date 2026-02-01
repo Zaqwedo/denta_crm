@@ -13,7 +13,7 @@ export const PinPad: React.FC<PinPadProps> = ({ onNumberClick, onDeleteClick, di
     const numbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete']
 
     return (
-        <div className="grid grid-cols-3 gap-4 max-w-[280px] mx-auto">
+        <div className="grid grid-cols-3 gap-2 max-w-[260px] mx-auto">
             {numbers.map((item, index) => {
                 if (item === '') return <div key={`empty-${index}`} />
 

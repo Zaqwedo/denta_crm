@@ -72,7 +72,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
             )}
 
             {/* Индикаторы ввода */}
-            <div className="flex gap-4 mb-6">
+            <div className="flex gap-4 mb-4">
                 {[0, 1, 2, 3].map((i) => (
                     <div
                         key={i}
@@ -85,11 +85,11 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
             </div>
 
             {error ? (
-                <div className="h-6 mb-6">
-                    <p className="text-red-400 text-sm font-medium animate-bounce">{error}</p>
+                <div className="h-4 mb-2">
+                    <p className="text-red-400 text-xs font-bold">{error}</p>
                 </div>
             ) : (
-                <div className="h-6 mb-6" />
+                <div className="h-4 mb-2" />
             )}
 
             <PinPad
@@ -98,7 +98,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
                 disabled={loading}
             />
 
-            <div className="mt-8 flex flex-col gap-4 w-full px-8">
+            <div className="mt-4 flex flex-col gap-2 w-full px-4">
                 <button
                     onClick={onSwitchToPassword}
                     className="flex items-center justify-center gap-2 text-gray-400 hover:text-blue-600 dark:text-white/70 dark:hover:text-white font-medium py-2 transition-colors text-sm"
