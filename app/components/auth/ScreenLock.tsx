@@ -30,7 +30,7 @@ export default function ScreenLock() {
     if (!isLocked || !user) return null
 
     return (
-        <div className="fixed inset-0 z-[9999] h-[100dvh] w-screen bg-slate-100/80 dark:bg-[#0f172a]/95 backdrop-blur-md flex flex-col items-center justify-center p-4 overscroll-none touch-none">
+        <div className="fixed inset-0 z-[9999] h-[100dvh] w-screen bg-slate-100/80 dark:bg-[#0f172a]/95 backdrop-blur-md flex flex-col items-center justify-start pt-[15dvh] p-4 overscroll-none touch-none">
             <div className="w-full max-w-[340px] bg-white dark:bg-gray-800 rounded-[48px] p-8 shadow-2xl border border-gray-100 dark:border-gray-700 flex flex-col items-center">
                 <div className="flex flex-col items-center mb-6 text-gray-900 dark:text-white text-center">
                     <div className="w-14 h-14 bg-blue-600/10 dark:bg-blue-500/20 rounded-2xl flex items-center justify-center mb-4 ring-1 ring-blue-600/20 dark:ring-blue-400/30">
