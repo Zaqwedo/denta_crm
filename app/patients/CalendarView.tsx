@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getPatients } from '@/lib/supabase-db'
+import { getEvents } from '@/lib/events-db'
 import { formatTime } from '@/lib/utils'
 import { SegmentedControl } from './SegmentedControl'
 import { DayView } from './DayView'
@@ -10,7 +11,7 @@ import { MonthView } from './MonthView'
 import { Header } from '../components/Header'
 
 // Компонент недельного вида календаря
-function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[], selectedDate: Date, onDateChange: (date: Date) => void }) {
+function WeekView({ patients, events, selectedDate, onDateChange }: { patients: Patient[], events: any[], selectedDate: Date, onDateChange: (date: Date) => void }) {
   const router = useRouter()
 
   const getWeekDays = (date: Date) => {
@@ -43,6 +44,11 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
         const timeB = b.time || '00:00'
         return timeA.localeCompare(timeB)
       })
+  }
+
+  const getEventsForDay = (date: Date) => {
+    const dateStr = formatDateLocal(date)
+    return events.filter(event => event.date === dateStr)
   }
 
   const navigateWeek = (direction: 'prev' | 'next') => {
@@ -196,14 +202,15 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
           <div className="max-w-4xl mx-auto">
             {weekDays.map((day, dayIndex) => {
               const dayPatients = getPatientsForDay(day)
+              const dayEvents = getEventsForDay(day)
               const dayDate = new Date(day)
               dayDate.setHours(0, 0, 0, 0)
               const todayCheck = new Date()
               todayCheck.setHours(0, 0, 0, 0)
               const isToday = dayDate.getTime() === todayCheck.getTime()
 
-              if (dayPatients.length === 0) {
-                return null // Не показываем дни без записей
+              if (dayPatients.length === 0 && dayEvents.length === 0) {
+                return null // Не показываем дни без записей и событий
               }
 
               return (
@@ -222,6 +229,31 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
 
                   {/* Patients List for this day */}
                   <div className="space-y-3">
+                    {/* События */}
+                    {dayEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        onClick={() => router.push('/events')}
+                        className="flex items-start gap-3 p-3 bg-blue-50/50 rounded-xl cursor-pointer hover:bg-blue-100/50 transition-colors border border-blue-100"
+                      >
+                        <div className="w-1 h-full min-h-[50px] rounded-full bg-blue-500"></div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 mb-1">
+                            <StarIcon size={12} /> СОБЫТИЕ {event.time && `• ${event.time.slice(0, 5)}`}
+                          </div>
+                          <div className="text-base font-black text-gray-900 leading-tight">
+                            {event.title}
+                          </div>
+                          {event.location && (
+                            <div className="text-xs text-gray-500 mt-1 font-bold">
+                              📍 {event.location}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Пациенты */}
                     {dayPatients.map((patient) => {
                       const timeRange = formatTimeRange(patient.time)
                       return (
@@ -256,7 +288,7 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
             })}
 
             {/* Empty state if no appointments in week */}
-            {weekDays.every(day => getPatientsForDay(day).length === 0) && (
+            {weekDays.every(day => getPatientsForDay(day).length === 0 && getEventsForDay(day).length === 0) && (
               <div className="text-center py-12">
                 <div className="text-gray-400 text-4xl mb-4">📅</div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет записей</h3>
@@ -283,19 +315,23 @@ interface Patient {
 export function CalendarView() {
 
   const [patients, setPatients] = useState<Patient[]>([])
+  const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState(2) // 0: День, 1: Неделя, 2: Месяц (по умолчанию Месяц)
   const [selectedDate, setSelectedDate] = useState(new Date())
 
   useEffect(() => {
-    loadPatients()
+    loadData()
   }, [])
 
-  const loadPatients = async () => {
+  const loadData = async () => {
     try {
-      const data = await getPatients()
+      const [patientsData, eventsData] = await Promise.all([
+        getPatients(),
+        getEvents()
+      ])
 
-      const formattedPatients = data.map((patient, index) => {
+      const formattedPatients = patientsData.map((patient, index) => {
         const rawDate = patient['Дата записи'] || ''
         console.log(`📊 CALENDAR: Пациент ${index + 1} (${patient.ФИО}): сырая дата = "${rawDate}" (тип: ${typeof rawDate})`)
 
@@ -335,9 +371,12 @@ export function CalendarView() {
         }
       })
 
+      console.log('📊 CALENDAR: Загружено пациентов:', formattedPatients.length)
+      console.log('📊 CALENDAR: Загружено событий:', eventsData.length)
       setPatients(formattedPatients)
+      setEvents(eventsData)
     } catch (error) {
-      console.error('Ошибка загрузки пациентов:', error)
+      console.error('Ошибка загрузки данных для календаря:', error)
     } finally {
       setLoading(false)
     }
@@ -346,13 +385,13 @@ export function CalendarView() {
   const renderCalendarView = () => {
     switch (viewMode) {
       case 0:
-        return <DayView patients={patients} selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        return <DayView patients={patients} events={events} selectedDate={selectedDate} onDateChange={setSelectedDate} />
       case 1:
-        return <WeekView patients={patients} selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        return <WeekView patients={patients} events={events} selectedDate={selectedDate} onDateChange={setSelectedDate} />
       case 2:
-        return <MonthView patients={patients} selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        return <MonthView patients={patients} events={events} selectedDate={selectedDate} onDateChange={setSelectedDate} />
       default:
-        return <WeekView patients={patients} selectedDate={selectedDate} onDateChange={setSelectedDate} />
+        return <WeekView patients={patients} events={events} selectedDate={selectedDate} onDateChange={setSelectedDate} />
     }
   }
 
@@ -419,5 +458,18 @@ const ChevronRightIcon = ({ size = 24, className = '' }: { size?: number; classN
     className={className}
   >
     <polyline points="9,18 15,12 9,6"></polyline>
+  </svg>
+)
+
+const StarIcon = ({ size = 24, className = '' }: { size?: number; className?: string }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="none"
+    className={className}
+  >
+    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
   </svg>
 )

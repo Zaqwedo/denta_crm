@@ -15,6 +15,7 @@ interface Patient {
 
 interface DayViewProps {
   patients: Patient[]
+  events: any[]
   selectedDate: Date
   onDateChange: (date: Date) => void
 }
@@ -51,8 +52,13 @@ const ChevronRightIcon = ({ size = 24, className = '' }: { size?: number; classN
   </svg>
 )
 
-export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) {
+export function DayView({ patients, events, selectedDate, onDateChange }: DayViewProps) {
   const router = useRouter()
+  const starIcon = (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-blue-500">
+      <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+    </svg>
+  )
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(selectedDate)
@@ -72,6 +78,14 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
   const dayPatients = patients.filter(patient => {
     if (!patient.date) return false
     return patient.date === selectedDateStr
+  }).sort((a, b) => {
+    const timeA = a.time || '00:00'
+    const timeB = b.time || '00:00'
+    return timeA.localeCompare(timeB)
+  })
+
+  const dayEvents = events.filter(event => {
+    return event.date === selectedDateStr
   }).sort((a, b) => {
     const timeA = a.time || '00:00'
     const timeB = b.time || '00:00'
@@ -116,7 +130,7 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
                 })}
               </h1>
               <p className="text-sm text-gray-600 mt-1">
-                {dayPatients.length} записей
+                {dayPatients.length} записей • {dayEvents.length} событий
               </p>
             </div>
             <button
@@ -130,14 +144,41 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
 
         {/* Day Schedule */}
         <div className="p-4">
-          {dayPatients.length === 0 ? (
+          {dayPatients.length === 0 && dayEvents.length === 0 ? (
             <div className="bg-white rounded-[20px] p-8 text-center shadow-sm">
               <div className="text-gray-400 text-4xl mb-4">📅</div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Нет записей</h3>
-              <p className="text-gray-600">На этот день нет запланированных приемов</p>
+              <p className="text-gray-600">На этот день ничего не запланировано</p>
             </div>
           ) : (
             <div className="space-y-3">
+              {/* События */}
+              {dayEvents.map((event) => (
+                <div
+                  key={event.id}
+                  onClick={() => router.push('/events')}
+                  className="bg-blue-50/50 border border-blue-100 rounded-[16px] p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1 bg-blue-100 rounded-lg">
+                        {starIcon}
+                      </div>
+                      <span className="text-sm font-black text-blue-600 uppercase tracking-widest">
+                        Событие {event.time && `• ${event.time.slice(0, 5)}`}
+                      </span>
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-black text-gray-900 leading-tight mb-2">{event.title}</h3>
+                  {event.location && (
+                    <p className="text-gray-500 font-bold text-sm flex items-center gap-1">
+                      📍 {event.location}
+                    </p>
+                  )}
+                </div>
+              ))}
+
+              {/* Пациенты */}
               {dayPatients.map((patient) => (
                 <div
                   key={patient.id}

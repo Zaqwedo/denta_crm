@@ -13,7 +13,8 @@ import {
     Shield,
     LogOut,
     X,
-    ChevronRight
+    ChevronRight,
+    Star
 } from 'lucide-react'
 
 interface SideMenuProps {
@@ -33,6 +34,7 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
         { name: 'Календарь', href: '/calendar', icon: Calendar },
         { name: 'Картотека', href: '/patients/card-index', icon: Users },
         { name: 'Изменения', href: '/patients/changes', icon: History },
+        { name: 'События', href: '/events', icon: Star },
         ...(isAdmin ? [{ name: 'Админ панель', href: '/admin/dashboard', icon: Shield }] : []),
     ]
 

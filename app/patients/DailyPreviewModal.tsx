@@ -36,10 +36,11 @@ interface DailyPreviewModalProps {
   onClose: () => void
   selectedDate: Date | null
   patients: Patient[]
+  events: any[]
   onPatientSelect: (patient: Patient) => void
 }
 
-export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onPatientSelect }: DailyPreviewModalProps) {
+export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, events, onPatientSelect }: DailyPreviewModalProps) {
   if (!isOpen || !selectedDate) return null
 
   // Функция для форматирования даты в YYYY-MM-DD в локальном времени
@@ -56,6 +57,14 @@ export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onP
 
   // Используем локальное время для сравнения дат
   const selectedDateStr = formatDateLocal(selectedDate)
+
+  const dayEvents = events.filter(event => {
+    return event.date === selectedDateStr
+  }).sort((a, b) => {
+    const timeA = a.time || '00:00'
+    const timeB = b.time || '00:00'
+    return timeA.localeCompare(timeB)
+  })
 
   const dayPatients = patients.filter(patient => {
     console.log('🔍 DAILY PREVIEW: Проверяем пациента:', patient.name, 'дата из БД:', patient.date, 'тип:', typeof patient.date)
@@ -136,20 +145,45 @@ export function DailyPreviewModal({ isOpen, onClose, selectedDate, patients, onP
 
           {/* Content */}
           <div className="p-6 max-h-[60vh] overflow-y-auto">
-            {dayPatients.length === 0 ? (
+            {dayPatients.length === 0 && dayEvents.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-gray-400 text-4xl mb-4">📅</div>
-                <p className="text-gray-600 text-lg">Записей пока нет</p>
+                <p className="text-gray-600 text-lg">Событий и записей нет</p>
                 <p className="text-gray-500 text-sm mt-2">
-                  На этот день нет запланированных приемов
+                  На этот день ничего не запланировано
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="text-sm text-gray-600 mb-4">
-                  {dayPatients.length} записей на этот день
+                <div className="text-sm text-gray-600 mb-4 flex justify-between font-bold">
+                  <span>{dayPatients.length} записей</span>
+                  <span>{dayEvents.length} событий</span>
                 </div>
 
+                {/* События */}
+                {dayEvents.map((event) => (
+                  <div
+                    key={event.id}
+                    className="p-4 rounded-xl border border-blue-100 bg-blue-50/30 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="text-lg font-black text-blue-600 min-w-[70px]">
+                        {event.time ? event.time.slice(0, 5) : <span className="text-xs">Весь день</span>}
+                      </div>
+                      <div>
+                        <div className="font-black text-gray-900 leading-tight">{event.title}</div>
+                        {event.location && <div className="text-xs text-gray-500 font-bold mt-0.5">📍 {event.location}</div>}
+                      </div>
+                    </div>
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-blue-600">
+                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                      </svg>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Пациенты */}
                 {dayPatients.map((patient) => (
                   <div
                     key={patient.id}

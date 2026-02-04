@@ -17,6 +17,7 @@ interface Patient {
 
 interface MonthViewProps {
   patients: Patient[]
+  events: any[]
   selectedDate: Date
   onDateChange: (date: Date) => void
 }
@@ -53,7 +54,7 @@ const ChevronRightIcon = ({ size = 24, className = '' }: { size?: number; classN
   </svg>
 )
 
-export function MonthView({ patients, selectedDate, onDateChange }: MonthViewProps) {
+export function MonthView({ patients, events, selectedDate, onDateChange }: MonthViewProps) {
   const router = useRouter()
   const [selectedDayForPreview, setSelectedDayForPreview] = useState<Date | null>(null)
 
@@ -126,6 +127,11 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
     return patients.filter(patient => patient.date === dateStr)
   }
 
+  const getEventsForDay = (date: Date) => {
+    const dateStr = formatDateLocal(date)
+    return events.filter(event => event.date === dateStr)
+  }
+
   const getAppointmentColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'подтвержден':
@@ -187,6 +193,7 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
             <div className="grid grid-cols-7 gap-1 p-4">
               {days.map((dayInfo, index) => {
                 const dayPatients = getPatientsForDay(dayInfo.date)
+                const dayEvents = getEventsForDay(dayInfo.date)
                 const isToday = dayInfo.date.toDateString() === today.toDateString()
                 const isWeekend = dayInfo.date.getDay() === 0 || dayInfo.date.getDay() === 6
 
@@ -201,23 +208,30 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
                       } ${isToday ? 'ring-2 ring-blue-500' : ''} transition-colors`}
                   >
                     <div className={`text-sm font-medium mb-1 ${!dayInfo.isCurrentMonth ? 'text-gray-400' :
-                        isToday ? 'text-blue-600' :
-                          isWeekend ? 'text-gray-500' : 'text-gray-900'
+                      isToday ? 'text-blue-600' :
+                        isWeekend ? 'text-gray-500' : 'text-gray-900'
                       }`}>
                       {dayInfo.dayNumber}
                     </div>
 
-                    <div className="space-y-1">
-                      {dayPatients.slice(0, 3).map((patient, patientIndex) => (
+                    <div className="flex flex-wrap gap-1">
+                      {dayEvents.map((event, eventIndex) => (
+                        <div
+                          key={event.id}
+                          className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_5px_rgba(37,99,235,0.5)]"
+                          title={`СОБЫТИЕ: ${event.title}`}
+                        ></div>
+                      ))}
+                      {dayPatients.slice(0, 5 - Math.min(dayEvents.length, 5)).map((patient, patientIndex) => (
                         <div
                           key={patient.id}
                           className={`w-2 h-2 rounded-full ${getAppointmentColor(patient.status)}`}
                           title={`${patient.name} - ${formatTime(patient.time) || 'Время не указано'}`}
                         ></div>
                       ))}
-                      {dayPatients.length > 3 && (
-                        <div className="text-xs text-gray-500 font-medium">
-                          +{dayPatients.length - 3}
+                      {dayPatients.length + dayEvents.length > 5 && (
+                        <div className="text-[8px] text-gray-400 font-black leading-none mt-0.5">
+                          +{dayPatients.length + dayEvents.length - 5}
                         </div>
                       )}
                     </div>
@@ -247,6 +261,10 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
                 <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
                 <span className="text-sm text-gray-700">Завершен</span>
               </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-blue-600 rounded-full shadow-[0_0_5px_rgba(37,99,235,0.5)]"></div>
+                <span className="text-sm font-bold text-gray-900">Событие (личная запись)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -259,6 +277,7 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
         onClose={() => setSelectedDayForPreview(null)}
         selectedDate={selectedDayForPreview}
         patients={patients}
+        events={events}
         onPatientSelect={handlePatientSelect}
       />
     </>
