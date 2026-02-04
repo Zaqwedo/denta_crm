@@ -194,11 +194,12 @@ export default async function handler(
         .select('id')
         .eq('provider', 'yandex')
         .eq('email', checkEmail)
-        .single() // Ожидаем одну запись
+        .maybeSingle() // Используем maybeSingle вместо single
 
-      if (whitelistError && whitelistError.code !== 'PGRST116') { // PGRST116 = not found
+      if (whitelistError) {
         console.error('❌ Whitelist query error:', whitelistError)
         logger.error('Whitelist query error:', whitelistError)
+        return res.redirect(`/login?error=${encodeURIComponent('Ошибка при проверке прав доступа.')}`)
       }
 
       const isAllowed = !!userWhitelistRecord
@@ -213,12 +214,9 @@ export default async function handler(
 
       console.log('✅ Email allowed, proceeding with login')
     } catch (error) {
-      console.error('❌ Whitelist check error:', error)
-      logger.error('Whitelist check error:', error)
-      // Продолжаем без проверки whitelist в случае ошибки подключения к БД,
-      // НО в продакшене лучше блокировать доступ, если проверка не удалась.
-      // Здесь для надежности лучше оставить как есть (soft fail) или блокировать (hard fail).
-      // Для безопасности лучше hard fail, но чтобы не сломать вход при сбоях Supabase - soft fail.
+      console.error('❌ Whitelist check exception:', error)
+      logger.error('Whitelist check exception:', error)
+      return res.redirect(`/login?error=${encodeURIComponent('Внутренняя ошибка при проверке доступа.')}`)
     }
 
     // Устанавливаем HttpOnly cookie с подписанным токеном

@@ -360,6 +360,7 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
+                    maxLength={60}
                     className="w-full px-5 py-4 text-lg border border-gray-300 bg-white rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>

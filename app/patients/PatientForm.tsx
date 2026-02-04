@@ -172,6 +172,7 @@ export function PatientForm({ isOpen: isOpenProp, onClose: onCloseProp, initialD
                     id="name"
                     name="name"
                     required
+                    maxLength={60}
                     className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Иван Иванов"
                     autoFocus

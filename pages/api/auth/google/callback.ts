@@ -159,6 +159,7 @@ export default async function handler(
       if (whitelistError) {
         console.error('❌ Whitelist query error:', whitelistError)
         logger.error('Whitelist query error:', whitelistError)
+        return res.redirect(`/login?error=${encodeURIComponent('Ошибка при проверке прав доступа.')}`)
       }
 
       const allowedEmails = whitelistData?.map(item => item.email.toLowerCase().trim()) || []
@@ -166,7 +167,7 @@ export default async function handler(
       console.log('📋 Google whitelist:', allowedEmails)
       console.log('✅ User email in whitelist?', allowedEmails.includes(userEmail))
 
-      if (allowedEmails.length > 0 && !allowedEmails.includes(userEmail)) {
+      if (!allowedEmails.includes(userEmail)) {
         console.log('❌ Email not in whitelist, redirecting to login')
         logger.warn('Google OAuth: Email not in whitelist:', userEmail)
         return res.redirect('/login?error=google_email_not_allowed')
@@ -174,9 +175,9 @@ export default async function handler(
 
       console.log('✅ Email allowed, proceeding with login')
     } catch (error) {
-      console.error('❌ Whitelist check error:', error)
-      logger.error('Whitelist check error:', error)
-      // Продолжаем без проверки whitelist в случае ошибки
+      console.error('❌ Whitelist check exception:', error)
+      logger.error('Whitelist check exception:', error)
+      return res.redirect(`/login?error=${encodeURIComponent('Внутренняя ошибка при проверке доступа.')}`)
     }
 
     // Устанавливаем HttpOnly cookie с подписанным токеном

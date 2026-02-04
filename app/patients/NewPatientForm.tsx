@@ -125,6 +125,7 @@ export function NewPatientForm() {
           type="text"
           name="name"
           required
+          maxLength={60}
           className="w-full px-5 py-4 text-lg border border-gray-300 rounded-[14px] focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
           placeholder="Введите ФИО пациента *"
         />
