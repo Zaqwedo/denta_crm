@@ -3,14 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
-
-// Разрешенные Email адреса
-// Добавьте email адреса для ограничения доступа
-
-const ALLOWED_EMAILS: string[] = [
-  // Добавьте разрешенные email адреса
-  // Например: 'admin@denta-crm.com'
-]
+import { isBiometricsAvailable } from '@/lib/biometrics'
 
 export interface User {
   id: number
@@ -51,12 +44,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Проверяем поддержку биометрии при загрузке
   useEffect(() => {
-    import('@/lib/biometrics').then(({ isBiometricsAvailable }) => {
-      isBiometricsAvailable().then(supported => {
-        setIsBiometricSupported(supported)
-        setIsBiometricEnabled(localStorage.getItem('denta_biometrics_enabled') === 'true')
+    const checkSupport = async () => {
+      const supported = await isBiometricsAvailable()
+      const isSecure = window.isSecureContext
+
+      console.log('🛡️ Biometric Support Build Check:', {
+        supported,
+        isSecure,
+        origin: window.location.origin
       })
-    })
+
+      setIsBiometricSupported(supported)
+      setIsBiometricEnabled(localStorage.getItem('denta_biometrics_enabled') === 'true')
+    }
+    checkSupport()
   }, [])
 
   const handleSetBiometricEnabled = useCallback((enabled: boolean) => {
@@ -88,172 +89,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     sessionStorage.removeItem('denta_is_locked')
     sessionStorage.removeItem('denta_unlocked_in_session')
 
-    // Выходим из Supabase
     await supabase.auth.signOut()
   }, [])
 
   const login = useCallback((userData: User, authTypeParam?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => {
     const finalAuthType = authTypeParam || 'email'
-    const isAdmin = userData.username === 'admin' || userData.first_name === 'Admin'
-
-    if (!isAdmin && finalAuthType === 'email' && allowedEmails.length > 0) {
-      const userEmail = (userData.username || userData.email || '').toLowerCase().trim()
-      const normalizedAllowedEmails = allowedEmails.map(e => e.toLowerCase().trim())
-      console.log('Client-side email whitelist check (info only):', {
-        userEmail,
-        isInList: normalizedAllowedEmails.includes(userEmail)
-      })
-    }
-
     setUser(userData)
     setAuthType(finalAuthType)
     localStorage.setItem('denta_user', JSON.stringify(userData))
     localStorage.setItem('denta_auth_timestamp', Date.now().toString())
     localStorage.setItem('denta_auth_type', finalAuthType)
-  }, [allowedEmails])
+  }, [])
 
-  // Загружаем белые списки для ВСЕХ провайдеров (email, google, yandex)
+  // Загружаем белые списки
   useEffect(() => {
     const loadAllWhitelists = async () => {
       try {
-        // Проверяем кэш в sessionStorage
-        const cachedData = sessionStorage.getItem('whitelist_cache')
-        const cacheTimestamp = sessionStorage.getItem('whitelist_cache_timestamp')
-
-        if (cachedData && cacheTimestamp) {
-          const age = Date.now() - parseInt(cacheTimestamp)
-          // Кэш действителен 5 минут
-          if (age < 5 * 60 * 1000) {
-            const cached = JSON.parse(cachedData)
-            console.log('Using cached whitelist:', { count: cached.length })
-            setAllowedEmails(cached)
-            return
-          }
-        }
-
-        // Загружаем whitelist для всех провайдеров параллельно
         const [emailRes, googleRes, yandexRes] = await Promise.all([
           fetch('/api/whitelist?provider=email'),
           fetch('/api/whitelist?provider=google'),
           fetch('/api/whitelist?provider=yandex'),
         ])
-
         const allEmails = []
-
-        if (emailRes.ok) {
-          const data = await emailRes.json()
-          allEmails.push(...(data.emails || []))
-        }
-
-        if (googleRes.ok) {
-          const data = await googleRes.json()
-          allEmails.push(...(data.emails || []))
-        }
-
-        if (yandexRes.ok) {
-          const data = await yandexRes.json()
-          allEmails.push(...(data.emails || []))
-        }
-
-        // Убираем дубликаты
-        const uniqueEmails = [...new Set(allEmails)]
-
-        console.log('Loaded whitelists from all providers:', {
-          email: emailRes.ok,
-          google: googleRes.ok,
-          yandex: yandexRes.ok,
-          total: uniqueEmails.length,
-          emails: uniqueEmails
-        })
-
-        // Сохраняем в кэш
-        sessionStorage.setItem('whitelist_cache', JSON.stringify(uniqueEmails))
-        sessionStorage.setItem('whitelist_cache_timestamp', Date.now().toString())
-
-        setAllowedEmails(uniqueEmails)
+        if (emailRes.ok) { allEmails.push(...((await emailRes.json()).emails || [])) }
+        if (googleRes.ok) { allEmails.push(...((await googleRes.json()).emails || [])) }
+        if (yandexRes.ok) { allEmails.push(...((await yandexRes.json()).emails || [])) }
+        setAllowedEmails([...new Set(allEmails)])
       } catch (error) {
         console.error('Error loading whitelists:', error)
       }
     }
-
     loadAllWhitelists()
   }, [])
 
   useEffect(() => {
-    // Проверяем сохраненную сессию при загрузке
-    const checkAuth = () => {
-      try {
-        const savedUser = localStorage.getItem('denta_user')
-        const savedTimestamp = localStorage.getItem('denta_auth_timestamp')
-        const savedAuthType = localStorage.getItem('denta_auth_type') as 'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null
+    const savedUser = localStorage.getItem('denta_user')
+    const savedTimestamp = localStorage.getItem('denta_auth_timestamp')
+    const savedAuthType = localStorage.getItem('denta_auth_type') as any
+    const sessionLocked = sessionStorage.getItem('denta_is_locked') === 'true'
+    const hasPin = localStorage.getItem('denta_has_pin') === 'true'
 
-        // Проверяем, был ли экран заблокирован в этой сессии
-        const sessionLocked = sessionStorage.getItem('denta_is_locked') === 'true'
-        const hasPin = localStorage.getItem('denta_has_pin') === 'true'
-
-        if (savedUser && savedTimestamp) {
-          const userData = JSON.parse(savedUser)
-          const timestamp = parseInt(savedTimestamp)
-          const now = Date.now()
-
-          // Сессия действительна 7 дней
-          if (now - timestamp < 7 * 24 * 60 * 60 * 1000) {
-            setUser(userData)
-            setAuthType(savedAuthType || 'email')
-
-            // Если есть PIN и сессия помечена как заблокированная (или это новое открытие вкладки)
-            if (hasPin) {
-              // Если это новое открытие вкладки (нет флага разблокировки в sessionStorage), блокируем
-              const isUnlockedInSession = sessionStorage.getItem('denta_unlocked_in_session') === 'true'
-              if (sessionLocked || !isUnlockedInSession) {
-                setIsLocked(true)
-              }
-            }
-          } else {
-            logout()
+    if (savedUser && savedTimestamp) {
+      const userData = JSON.parse(savedUser)
+      const timestamp = parseInt(savedTimestamp)
+      if (Date.now() - timestamp < 7 * 24 * 60 * 60 * 1000) {
+        setUser(userData)
+        setAuthType(savedAuthType || 'email')
+        if (hasPin) {
+          const isUnlockedInSession = sessionStorage.getItem('denta_unlocked_in_session') === 'true'
+          if (sessionLocked || !isUnlockedInSession) {
+            setIsLocked(true)
           }
         }
-      } catch (error) {
-        logger.error('Error checking auth:', error)
-        logout()
-      } finally {
-        setIsLoading(false)
-      }
+      } else { logout() }
     }
+    setIsLoading(false)
+  }, [logout])
 
-    checkAuth()
-  }, [])
-
-  // Автоблокировка при бездействии
   useEffect(() => {
     if (!user || isLocked) return
-
     let timeoutId: NodeJS.Timeout
-    const INACTIVITY_TIME = 10 * 60 * 1000 // 10 минут
-
     const resetTimer = () => {
       clearTimeout(timeoutId)
       timeoutId = setTimeout(() => {
-        const hasPin = localStorage.getItem('denta_has_pin') === 'true'
-        if (hasPin) {
-          lock()
-        }
-      }, INACTIVITY_TIME)
+        if (localStorage.getItem('denta_has_pin') === 'true') lock()
+      }, 10 * 60 * 1000)
     }
-
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
     events.forEach(event => document.addEventListener(event, resetTimer))
-
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && user && !isLocked) {
-        const hasPin = localStorage.getItem('denta_has_pin') === 'true'
-        if (hasPin) lock()
-      }
+      if (document.visibilityState === 'hidden' && user && !isLocked && localStorage.getItem('denta_has_pin') === 'true') lock()
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-
     resetTimer()
-
     return () => {
       clearTimeout(timeoutId)
       events.forEach(event => document.removeEventListener(event, resetTimer))
@@ -278,17 +186,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     unlock
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }
