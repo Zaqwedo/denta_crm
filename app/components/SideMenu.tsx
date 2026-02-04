@@ -131,7 +131,7 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
                         className="w-full flex items-center gap-3 p-3 rounded-2xl text-blue-600 font-bold hover:bg-blue-50 transition-colors text-sm"
                     >
                         <Shield className="w-5 h-5" />
-                        <span>Безопасность (PIN)</span>
+                        <span>Безопасность</span>
                     </button>
                     <button
                         onClick={handleLogout}
