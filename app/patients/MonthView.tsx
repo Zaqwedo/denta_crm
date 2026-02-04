@@ -58,7 +58,7 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
   const [selectedDayForPreview, setSelectedDayForPreview] = useState<Date | null>(null)
 
   const handlePatientSelect = (patient: Patient) => {
-    router.push(`/patients/${patient.id}`)
+    router.push(`/patients/card-index?patientId=${patient.id}`)
     setSelectedDayForPreview(null) // Закрываем preview модал
   }
 
@@ -172,9 +172,8 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
             {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((day, index) => (
               <div
                 key={day}
-                className={`text-center py-2 text-sm font-medium ${
-                  index >= 5 ? 'text-gray-500' : 'text-gray-700'
-                }`}
+                className={`text-center py-2 text-sm font-medium ${index >= 5 ? 'text-gray-500' : 'text-gray-700'
+                  }`}
               >
                 {day}
               </div>
@@ -198,15 +197,13 @@ export function MonthView({ patients, selectedDate, onDateChange }: MonthViewPro
                       console.log('📅 MONTH VIEW: Клик по дню:', dayInfo.date.toISOString(), 'пациентов в дне:', getPatientsForDay(dayInfo.date).length)
                       setSelectedDayForPreview(dayInfo.date)
                     }}
-                    className={`min-h-[80px] p-2 border border-gray-100 rounded-lg cursor-pointer ${
-                      !dayInfo.isCurrentMonth ? 'bg-gray-50 hover:bg-gray-100' : 'bg-white hover:bg-gray-50'
-                    } ${isToday ? 'ring-2 ring-blue-500' : ''} transition-colors`}
+                    className={`min-h-[80px] p-2 border border-gray-100 rounded-lg cursor-pointer ${!dayInfo.isCurrentMonth ? 'bg-gray-50 hover:bg-gray-100' : 'bg-white hover:bg-gray-50'
+                      } ${isToday ? 'ring-2 ring-blue-500' : ''} transition-colors`}
                   >
-                    <div className={`text-sm font-medium mb-1 ${
-                      !dayInfo.isCurrentMonth ? 'text-gray-400' :
-                      isToday ? 'text-blue-600' :
-                      isWeekend ? 'text-gray-500' : 'text-gray-900'
-                    }`}>
+                    <div className={`text-sm font-medium mb-1 ${!dayInfo.isCurrentMonth ? 'text-gray-400' :
+                        isToday ? 'text-blue-600' :
+                          isWeekend ? 'text-gray-500' : 'text-gray-900'
+                      }`}>
                       {dayInfo.dayNumber}
                     </div>
 

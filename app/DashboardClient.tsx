@@ -91,12 +91,22 @@ export default function DashboardClient() {
         day: 'numeric'
     })
 
+    const getGreeting = () => {
+        const now = new Date()
+        const mskHour = parseInt(now.toLocaleTimeString('en-US', { timeZone: 'Europe/Moscow', hour12: false, hour: 'numeric' }))
+
+        if (mskHour >= 5 && mskHour < 12) return 'Доброе утро,'
+        if (mskHour >= 12 && mskHour < 18) return 'Добрый день,'
+        if (mskHour >= 18 && mskHour <= 23) return 'Добрый вечер,'
+        return 'Доброй ночи,'
+    }
+
     return (
         <ProtectedRoute>
             <div className="min-h-screen bg-gray-50 pb-32" style={{ backgroundColor: 'var(--bg-primary)' }}>
                 <div className="max-w-md mx-auto px-6 pt-8">
                     <Header
-                        title={<>Добрый день,<br />{displayName}!</>}
+                        title={<>{getGreeting()}<br />{displayName}!</>}
                     />
 
                     {/* Controls */}

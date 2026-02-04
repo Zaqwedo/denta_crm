@@ -48,7 +48,7 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
                                 type="date"
                                 value={newRecord.date}
                                 onChange={(e) => setNewRecord({ ...newRecord, date: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:border-blue-500 transition-all outline-none"
+                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:border-blue-500 transition-all outline-none appearance-none min-h-[56px] text-gray-900"
                             />
                         </div>
                         <div>
@@ -57,7 +57,8 @@ export const AddRecordModal: React.FC<AddRecordModalProps> = ({
                                 type="time"
                                 value={newRecord.time}
                                 onChange={(e) => setNewRecord({ ...newRecord, time: e.target.value })}
-                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:border-blue-500 transition-all outline-none"
+                                className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:bg-white focus:border-blue-500 transition-all outline-none appearance-none min-h-[56px] text-gray-900"
+                                style={{ WebkitAppearance: 'none' }}
                             />
                         </div>
                     </div>

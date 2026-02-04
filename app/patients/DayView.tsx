@@ -141,7 +141,7 @@ export function DayView({ patients, selectedDate, onDateChange }: DayViewProps) 
               {dayPatients.map((patient) => (
                 <div
                   key={patient.id}
-                  onClick={() => router.push(`/patients/${patient.id}`)}
+                  onClick={() => router.push(`/patients/card-index?patientId=${patient.id}`)}
                   className="bg-white rounded-[16px] p-4 shadow-sm cursor-pointer hover:shadow-md transition-all duration-200 active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between mb-2">

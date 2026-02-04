@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { PatientData, updatePatientProfile, getPatients, addPatient, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
 import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET, PATIENT_STATUSES } from '@/lib/constants'
 import { handleDeletePatient } from '../actions'
@@ -37,6 +37,7 @@ const normalizeName = (name: string) => name.toLowerCase().replace(/[^а-яё]/g
 
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const { user } = useAuth()
 
     // SWR для работы с данными
@@ -83,6 +84,18 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
         chosenName: string,
         chosenBirthDate: string | null
     } | null>(null)
+
+    // Эффект для автоматического открытия карточки по ID из URL
+    useEffect(() => {
+        const patientIdParam = searchParams?.get('patientId')
+        if (patientIdParam && data) {
+            // Ищем клиента, у которого есть запись с этим ID (сравниваем как строки)
+            const foundClient = data.find(c => c.records.some(r => String(r.id) === patientIdParam))
+            if (foundClient) {
+                setSelectedClient(foundClient)
+            }
+        }
+    }, [searchParams, data])
 
     // При выборе клиента синхронизируем заметки
     useEffect(() => {

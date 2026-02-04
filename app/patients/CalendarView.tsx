@@ -227,7 +227,7 @@ function WeekView({ patients, selectedDate, onDateChange }: { patients: Patient[
                       return (
                         <div
                           key={patient.id}
-                          onClick={() => router.push(`/patients/${patient.id}`)}
+                          onClick={() => router.push(`/patients/card-index?patientId=${patient.id}`)}
                           className="flex items-start gap-3 p-3 bg-white rounded-lg cursor-pointer hover:bg-gray-50 transition-colors active:scale-[0.98]"
                         >
                           {/* Color line */}
