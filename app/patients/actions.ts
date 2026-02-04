@@ -128,12 +128,16 @@ export async function handleAddPatient(formData: FormData) {
 
     // Валидация обязательных полей на сервере
     if (!patientData.ФИО?.trim()) {
-      logger.error('DEBUG: ФИО validation failed:', {
+      logger.error('DEBUG: ФИО validation failed (empty):', {
         ФИО: patientData.ФИО,
         trimmed: patientData.ФИО?.trim(),
         length: patientData.ФИО?.trim().length
       })
       throw new Error('ФИО пациента обязательно для заполнения')
+    }
+
+    if (patientData.ФИО.length > 60) {
+      throw new Error('ФИО пациента не может превышать 60 символов')
     }
 
     await addPatient(patientData)
@@ -176,6 +180,10 @@ export async function handleUpdatePatient(patientId: string | number, formData: 
     logger.log('📝 HANDLE UPDATE: Начинаем обновление пациента');
     logger.log('📝 HANDLE UPDATE: ID:', patientId, 'тип:', typeof patientId);
     logger.log('📝 HANDLE UPDATE: Данные из формы:', patientData);
+
+    if (patientData.ФИО && patientData.ФИО.length > 60) {
+      throw new Error('ФИО пациента не может превышать 60 символов')
+    }
 
     await updatePatient(String(patientId), patientData, changedByEmail)
 
