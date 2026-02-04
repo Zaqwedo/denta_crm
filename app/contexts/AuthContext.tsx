@@ -28,6 +28,9 @@ interface AuthContextType {
   isLocked: boolean
   isPinSetupOpen: boolean
   setIsPinSetupOpen: (isOpen: boolean) => void
+  isBiometricSupported: boolean
+  isBiometricEnabled: boolean
+  setIsBiometricEnabled: (enabled: boolean) => void
   login: (user: User, authType?: 'email' | 'google' | 'yandex' | 'vk' | 'telegram') => void
   logout: () => void
   lock: () => void
@@ -41,8 +44,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isLocked, setIsLocked] = useState(false)
   const [isPinSetupOpen, setIsPinSetupOpen] = useState(false)
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false)
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState(false)
   const [authType, setAuthType] = useState<'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null>(null)
   const [allowedEmails, setAllowedEmails] = useState<string[]>([])
+
+  // Проверяем поддержку биометрии при загрузке
+  useEffect(() => {
+    import('@/lib/biometrics').then(({ isBiometricsAvailable }) => {
+      isBiometricsAvailable().then(supported => {
+        setIsBiometricSupported(supported)
+        setIsBiometricEnabled(localStorage.getItem('denta_biometrics_enabled') === 'true')
+      })
+    })
+  }, [])
+
+  const handleSetBiometricEnabled = useCallback((enabled: boolean) => {
+    setIsBiometricEnabled(enabled)
+    localStorage.setItem('denta_biometrics_enabled', enabled ? 'true' : 'false')
+  }, [])
 
   const lock = useCallback(() => {
     setIsLocked(true)
@@ -248,6 +268,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLocked,
     isPinSetupOpen,
     setIsPinSetupOpen,
+    isBiometricSupported,
+    isBiometricEnabled,
+    setIsBiometricEnabled: handleSetBiometricEnabled,
     authType,
     login,
     logout,

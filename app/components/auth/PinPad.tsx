@@ -7,15 +7,18 @@ interface PinPadProps {
     onNumberClick: (num: string) => void
     onDeleteClick: () => void
     disabled?: boolean
+    leftAction?: React.ReactNode
 }
 
-export const PinPad: React.FC<PinPadProps> = ({ onNumberClick, onDeleteClick, disabled }) => {
-    const numbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete']
+export const PinPad: React.FC<PinPadProps> = ({ onNumberClick, onDeleteClick, disabled, leftAction }) => {
+    const numbers = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'action', '0', 'delete']
 
     return (
         <div className="grid grid-cols-3 gap-2 max-w-[260px] mx-auto">
             {numbers.map((item, index) => {
-                if (item === '') return <div key={`empty-${index}`} />
+                if (item === 'action') {
+                    return <div key="left-action" className="flex items-center justify-center">{leftAction}</div>
+                }
 
                 if (item === 'delete') {
                     return (
