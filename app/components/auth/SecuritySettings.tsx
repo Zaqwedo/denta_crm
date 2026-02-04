@@ -105,9 +105,20 @@ export const SecuritySettings: React.FC = () => {
                     </div>
                 ) : (
                     <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-dashed border-gray-200 dark:border-gray-700 rounded-2xl">
-                        <div className="flex items-center gap-3 opacity-50">
-                            <Fingerprint size={20} className="text-gray-400" />
-                            <p className="text-xs font-medium text-gray-500">Биометрия недоступна на этом устройстве или в этом браузере</p>
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3 opacity-50">
+                                <Fingerprint size={20} className="text-gray-400" />
+                                <p className="text-xs font-medium text-gray-500">Биометрия недоступна</p>
+                            </div>
+                            <p className="text-[11px] text-gray-400 leading-relaxed">
+                                На устройствах Apple (iPhone/iPad) биометрия в браузерах Chrome и Opera может быть ограничена. Пожалуйста, используйте <b>Safari</b> для работы с Face ID.
+                            </p>
+                            <button
+                                onClick={() => window.location.reload()}
+                                className="text-[11px] text-blue-600 font-bold hover:underline text-left mt-1"
+                            >
+                                Перепроверить поддержку →
+                            </button>
                         </div>
                     </div>
                 )}
