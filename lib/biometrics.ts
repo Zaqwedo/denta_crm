@@ -5,13 +5,29 @@
 export const isBiometricsAvailable = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
 
-    // Проверяем наличие API
-    if (!window.PublicKeyCredential) return false;
+    // 1. Базовая проверка API
+    const hasAPI = !!window.PublicKeyCredential;
+
+    // 2. Проверка защищенного контекста (HTTPS)
+    const isSecure = window.isSecureContext;
+
+    if (!hasAPI || !isSecure) {
+        console.log('🚫 Biometrics basic check failed:', { hasAPI, isSecure });
+        return false;
+    }
 
     try {
-        // Проверяем наличие биометрического датчика на платформе
-        return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        // 3. Проверка наличия платформенного аутентификатора (FaceID/TouchID)
+        const isPlatformSupported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+
+        console.log('📱 Platform Biometrics Support:', {
+            isPlatformSupported,
+            userAgent: navigator.userAgent
+        });
+
+        return isPlatformSupported;
     } catch (e) {
+        console.error('❌ Biometrics detection error:', e);
         return false;
     }
 };
