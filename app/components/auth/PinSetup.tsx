@@ -221,7 +221,7 @@ export const PinSetup: React.FC<PinSetupProps> = ({ onComplete, onSkip }) => {
             </p>
 
             {/* Индикаторы ввода */}
-            <div className="flex gap-4 mb-10">
+            <div className="flex gap-6 mb-10">
                 {[0, 1, 2, 3].map((i) => {
                     const filled = step === 'enter' ? pin.length > i : confirmPin.length > i
                     return (

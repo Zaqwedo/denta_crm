@@ -151,7 +151,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
             )}
 
             {/* Индикаторы ввода */}
-            <div className="flex gap-4 mb-4">
+            <div className="flex gap-6 mb-4">
                 {[0, 1, 2, 3].map((i) => (
                     <div
                         key={i}
