@@ -45,17 +45,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Проверяем поддержку биометрии при загрузке
   useEffect(() => {
     const checkSupport = async () => {
-      const supported = await isBiometricsAvailable()
-      const isSecure = window.isSecureContext
+      try {
+        const supported = await isBiometricsAvailable()
+        const isSecure = window.isSecureContext
 
-      console.log('🛡️ Biometric Support Build Check:', {
-        supported,
-        isSecure,
-        origin: window.location.origin
-      })
+        console.log(`🛡️ Biometric Support: ${supported ? 'YES' : 'NO'} | Secure Context: ${isSecure ? 'YES' : 'NO'}`)
+        console.log('📍 Origin:', window.location.origin)
 
-      setIsBiometricSupported(supported)
-      setIsBiometricEnabled(localStorage.getItem('denta_biometrics_enabled') === 'true')
+        setIsBiometricSupported(supported && isSecure)
+        setIsBiometricEnabled(localStorage.getItem('denta_biometrics_enabled') === 'true')
+      } catch (err) {
+        console.error('❌ Biometric check failed:', err)
+      }
     }
     checkSupport()
   }, [])
