@@ -105,8 +105,9 @@ export const PinSetup: React.FC<PinSetupProps> = ({ onComplete, onSkip }) => {
                 },
                 pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
                 authenticatorSelection: {
-                    authenticatorAttachment: "platform",
+                    // Убираем жесткий platform, чтобы Chrome на iOS мог использовать доступные методы
                     userVerification: "required",
+                    residentKey: "preferred"
                 },
                 timeout: 60000,
                 attestation: "none",
