@@ -134,16 +134,19 @@ export async function POST(req: NextRequest) {
 
     // Проверяем whitelist для email авторизации
     try {
-      // Проверяем все providers, так как email может быть в любом из них
-      const allWhitelistEmails = await getWhitelistEmails(undefined) // Получаем все email без фильтра по provider
-      const emailWhitelist = await getWhitelistEmails('email') // Только для email provider
+      // Проверяем все providers
+      // getWhitelistEmails(undefined) возвращает всех, так что второй вызов не нужен
+      const allWhitelistEmails = await getWhitelistEmails(undefined)
 
       const allNormalized = allWhitelistEmails.map(e => ({
         email: (e.email || '').toLowerCase().trim(),
         provider: e.provider
       })).filter(e => e.email)
 
-      const emailNormalized = emailWhitelist.map(e => (e.email || '').toLowerCase().trim()).filter(e => e)
+      // Фильтруем для email провайдера в памяти
+      const emailNormalized = allNormalized
+        .filter(e => e.provider === 'email')
+        .map(e => e.email)
 
       console.log('Email login whitelist check (detailed):', {
         userEmail: normalizedEmail,

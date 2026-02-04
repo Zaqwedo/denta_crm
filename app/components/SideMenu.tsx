@@ -81,7 +81,7 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
                     }`}
             >
                 {/* Header */}
-                <div className="p-8 border-b border-gray-50 flex items-center justify-between">
+                <div className="p-5 border-b border-gray-50 flex items-center justify-between">
                     <div>
                         <h2 className="text-2xl font-black text-blue-600">Denta CRM</h2>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Stomatology System</p>
@@ -95,8 +95,8 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
                 </div>
 
                 {/* Navigation */}
-                <div className="flex-1 overflow-y-auto py-6 px-4">
-                    <nav className="space-y-2">
+                <div className="flex-1 overflow-y-auto py-4 px-3">
+                    <nav className="space-y-1">
                         {menuItems.map((item) => {
                             const Icon = item.icon
                             const active = isActive(item.href)
@@ -105,14 +105,14 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
                                     key={item.href}
                                     href={item.href}
                                     onClick={onClose}
-                                    className={`flex items-center justify-between p-4 rounded-2xl transition-all duration-200 group ${active
+                                    className={`flex items-center justify-between p-3 rounded-2xl transition-all duration-200 group ${active
                                         ? 'bg-blue-600 text-white shadow-lg shadow-blue-200'
                                         : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
                                         }`}
                                 >
-                                    <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-3">
                                         <Icon className={`w-5 h-5 ${active ? 'text-white' : 'text-gray-400 group-hover:text-blue-500'}`} />
-                                        <span className="font-bold">{item.name}</span>
+                                        <span className="font-bold text-sm">{item.name}</span>
                                     </div>
                                     <ChevronRight className={`w-4 h-4 ${active ? 'opacity-50' : 'opacity-0'}`} />
                                 </Link>
@@ -122,20 +122,20 @@ export function SideMenu({ isOpen, onClose, isAdmin }: SideMenuProps) {
                 </div>
 
                 {/* Footer */}
-                <div className="p-8 border-t border-gray-50 space-y-2">
+                <div className="p-5 border-t border-gray-50 space-y-1">
                     <button
                         onClick={() => {
                             onClose()
                             setIsPinSetupOpen(true)
                         }}
-                        className="w-full flex items-center gap-4 p-4 rounded-2xl text-blue-600 font-bold hover:bg-blue-50 transition-colors"
+                        className="w-full flex items-center gap-3 p-3 rounded-2xl text-blue-600 font-bold hover:bg-blue-50 transition-colors text-sm"
                     >
                         <Shield className="w-5 h-5" />
                         <span>Безопасность (PIN)</span>
                     </button>
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-4 p-4 rounded-2xl text-red-500 font-bold hover:bg-red-50 transition-colors"
+                        className="w-full flex items-center gap-3 p-3 rounded-2xl text-red-500 font-bold hover:bg-red-50 transition-colors text-sm"
                     >
                         <LogOut className="w-5 h-5" />
                         <span>Выйти из аккаунта</span>

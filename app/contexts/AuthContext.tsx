@@ -224,11 +224,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart']
     events.forEach(event => document.addEventListener(event, resetTimer))
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && user && !isLocked) {
+        const hasPin = localStorage.getItem('denta_has_pin') === 'true'
+        if (hasPin) lock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
     resetTimer()
 
     return () => {
       clearTimeout(timeoutId)
       events.forEach(event => document.removeEventListener(event, resetTimer))
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [user, isLocked, lock])
 
