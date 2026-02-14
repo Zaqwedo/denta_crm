@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { EventForm } from './EventForm'
 
 type CalendarEvent = {
-    id: string
+    id?: string
     title: string
     date: string
     time?: string
@@ -38,7 +38,8 @@ export function EventsViewClient() {
         }
     }, [user?.username, loadEvents])
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (id?: string) => {
+        if (!id) return
         if (!confirm('Вы уверены, что хотите удалить это событие?')) return
         const result = await handleDeleteEvent(id, user?.username || '')
         if (result.success) {
@@ -91,7 +92,7 @@ export function EventsViewClient() {
                         ) : filteredEvents.length > 0 ? (
                             filteredEvents.map((event) => (
                                 <div
-                                    key={event.id}
+                                    key={event.id || `${event.title}-${event.date}-${event.time || ''}`}
                                     className="group bg-white rounded-3xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-transparent hover:border-blue-100"
                                 >
                                     <div className="flex flex-col md:flex-row justify-between gap-4">
