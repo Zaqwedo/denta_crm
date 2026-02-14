@@ -348,7 +348,7 @@ export async function addWhitelistEmail(
         linksCount: doctorLinks.length
       })
 
-      const { data: insertedData, error: doctorsError } = await supabase
+      const { error: doctorsError } = await supabase
         .from('whitelist_email_doctors')
         .insert(doctorLinks)
         .select()
@@ -593,7 +593,7 @@ export async function deleteWhitelistEmail(email: string): Promise<void> {
     await safeEnsureAnonymousSession()
 
     // Сначала находим ID для удаления связей
-    const { data: emailData } = await supabase
+    await supabase
       .from('whitelist_emails')
       .select('id')
       .eq('email', email.toLowerCase())

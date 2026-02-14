@@ -3,7 +3,6 @@ import { rateLimiter, getClientIp } from '@/lib/rate-limit'
 
 const isDevelopment = process.env.NODE_ENV === 'development'
 const log = isDevelopment ? console.log : () => {}
-const logError = console.error
 
 export default async function handler(
   req: NextApiRequest,

@@ -390,7 +390,7 @@ async function importCSV() {
   
   if (errorDetails.length > 0) {
     console.log('\n❌ Детали ошибок:')
-    errorDetails.slice(0, 5).forEach(({ index, error, data }) => {
+    errorDetails.slice(0, 5).forEach(({ index, error }) => {
       console.log(`   Запись ${index}: ${error}`)
     })
     if (errorDetails.length > 5) {

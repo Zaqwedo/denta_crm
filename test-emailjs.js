@@ -25,7 +25,7 @@ function loadEnv() {
         env[key.trim()] = valueParts.join('=').trim()
       }
     })
-  } catch (e) {
+  } catch {
     try {
       const configPath = join(__dirname, 'env-config.txt')
       const configContent = readFileSync(configPath, 'utf8')
@@ -35,7 +35,7 @@ function loadEnv() {
           env[key.trim()] = valueParts.join('=').trim()
         }
       })
-    } catch (e2) {
+    } catch {
       console.error('❌ Не найден файл с переменными окружения')
       process.exit(1)
     }

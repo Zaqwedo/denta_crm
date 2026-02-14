@@ -21,7 +21,7 @@ async function checkColumns() {
     if (error) {
         // If RPC doesn't exist, try a direct query to information_schema if possible, 
         // but usually we can just try to select the column.
-        const { data: selectData, error: selectError } = await supabase
+        const { error: selectError } = await supabase
             .from('users')
             .select('pin_code_hash')
             .limit(1)

@@ -85,7 +85,7 @@ export async function ensureAnonymousSession(): Promise<void> {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 2000)
 
-      const { data, error } = await supabase.auth.signInAnonymously()
+      const { error } = await supabase.auth.signInAnonymously()
       clearTimeout(timeoutId)
 
       if (error) {

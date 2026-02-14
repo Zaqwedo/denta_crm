@@ -22,7 +22,7 @@ function loadEnv() {
         env[key.trim()] = valueParts.join('=').trim()
       }
     })
-  } catch (e) {
+  } catch {
     // Если .env.local не найден, пробуем env-config.txt
     try {
       const configPath = join(__dirname, 'env-config.txt')
@@ -33,7 +33,7 @@ function loadEnv() {
           env[key.trim()] = valueParts.join('=').trim()
         }
       })
-    } catch (e2) {
+    } catch {
       // Файлы не найдены
     }
   }
@@ -62,7 +62,7 @@ async function checkEmailJS() {
   try {
     await import('emailjs-com')
     emailjsAvailable = true
-  } catch (e) {
+  } catch {
     // Пакет не установлен
   }
 

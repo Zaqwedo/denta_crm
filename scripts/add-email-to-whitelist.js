@@ -39,7 +39,7 @@ async function addEmailToWhitelist(email, provider = 'email') {
 
     try {
         // Проверяем, существует ли уже такой email
-        const { data: existing, error: checkError } = await supabase
+        const { data: existing } = await supabase
             .from('whitelist_emails')
             .select('*')
             .eq('email', normalizedEmail)

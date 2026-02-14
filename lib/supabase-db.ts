@@ -5,7 +5,7 @@ import { logger } from './logger'
 import { getDoctorsForEmailByEmail, getNursesForEmailByEmail } from './admin-db'
 import { cookies } from 'next/headers'
 import { checkAdminAuth } from './auth-check'
-import { DB_COLUMNS, RECORD_STATUS } from './constants'
+import { DB_COLUMNS } from './constants'
 
 /**
  * Безопасно устанавливает анонимную сессию, игнорируя ошибки об отключенной анонимной аутентификации
@@ -63,7 +63,7 @@ export async function getPatients(userEmail?: string): Promise<PatientData[]> {
         const cookieStore = await cookies()
         const emailCookie = cookieStore.get('denta_user_email')
         email = emailCookie?.value
-      } catch (error) {
+      } catch {
         // Игнорируем ошибки чтения cookie
       }
     }
@@ -247,7 +247,7 @@ export async function getPatientChanges(patientId: string): Promise<Array<{
     const email = cookieStore.get('denta_user_email')?.value
     const client = isAdmin ? getSupabaseAdmin() : getSupabaseUser(email)
 
-    const { data, error } = await client
+    const { data } = await client
       .from('patient_changes')
       .select('field_name, old_value, new_value, changed_at, changed_by_email')
       .eq('patient_id', patientId)
@@ -354,7 +354,7 @@ export async function getChangedPatients(): Promise<PatientData[]> {
         const updatedTime = new Date(patient.updated_at).getTime();
         const createdTime = new Date(patient.created_at).getTime();
         return Math.abs(updatedTime - createdTime) > 1000;
-      } catch (e) { return false; }
+      } catch { return false; }
     });
 
     // --- 2. Получаем удаленных пациентов ---
@@ -656,13 +656,18 @@ export async function archiveAndRemovePatient(patientId: string, deletedByEmail:
     // Исключаем системные поля и поля, которых нет в таблице архива (emoji, notes)
     const {
       id,
-      created_at,
-      updated_at,
-      emoji,
-      notes,
-      ignored_duplicate_id, // Тоже скорее всего нет в архиве
+      created_at: _created_at,
+      updated_at: _updated_at,
+      emoji: _emoji,
+      notes: _notes,
+      ignored_duplicate_id: _ignoredDuplicateId, // Тоже скорее всего нет в архиве
       ...patientDataWithoutSystemFields
     } = patient as any;
+    void _created_at
+    void _updated_at
+    void _emoji
+    void _notes
+    void _ignoredDuplicateId
 
     const { error: insertError } = await adminClient
       .from('deleted_patients')
@@ -844,12 +849,15 @@ export async function restorePatient(patientId: string): Promise<void> {
     // 2. Подготавливаем данные для восстановления
     // Исключаем поля таблицы deleted_patients
     const {
-      id, // PK таблицы deleted_patients
+      id: _id, // PK таблицы deleted_patients
       original_id,
-      deleted_by_email,
-      deleted_at,
+      deleted_by_email: _deletedByEmail,
+      deleted_at: _deletedAt,
       ...patientData
     } = record;
+    void _id
+    void _deletedByEmail
+    void _deletedAt
 
     // Восстанавливаем оригинальный UUID
     const dataToRestore = {
@@ -907,4 +915,3 @@ export async function updateUserProfile(email: string, firstName: string, lastNa
     throw error
   }
 }
-

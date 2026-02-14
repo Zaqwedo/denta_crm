@@ -1,6 +1,6 @@
 'use server';
 
-import { getSupabaseAdmin, getSupabaseUser, ensureAnonymousSession } from './supabase'
+import { getSupabaseAdmin, getSupabaseUser } from './supabase'
 import { logger } from './logger'
 import { cookies } from 'next/headers'
 import { checkAdminAuth } from './auth-check'

@@ -2,7 +2,6 @@
 // В development режиме логирует все, в production только ошибки
 
 const isDevelopment = process.env.NODE_ENV === 'development'
-const isClient = typeof window !== 'undefined'
 
 export const logger = {
   log: (...args: any[]) => {

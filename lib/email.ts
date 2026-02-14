@@ -6,7 +6,7 @@ let emailjs: any = null
 if (typeof window !== 'undefined') {
   try {
     emailjs = require('@emailjs/browser')
-  } catch (e) {
+  } catch {
     console.warn('EmailJS not available, using demo mode')
   }
 }
