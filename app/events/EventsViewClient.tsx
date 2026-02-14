@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Plus, Calendar, MapPin, Clock, Edit2, Trash2, Search, Info } from 'lucide-react'
 import { Header } from '../components/Header'
 import { ProtectedRoute } from '../components/ProtectedRoute'
@@ -8,26 +8,35 @@ import { handleGetEvents, handleDeleteEvent } from './actions'
 import { useAuth } from '../contexts/AuthContext'
 import { EventForm } from './EventForm'
 
+type CalendarEvent = {
+    id: string
+    title: string
+    date: string
+    time?: string
+    location?: string
+    description?: string
+}
+
 export function EventsViewClient() {
     const { user } = useAuth()
-    const [events, setEvents] = useState<any[]>([])
+    const [events, setEvents] = useState<CalendarEvent[]>([])
     const [loading, setLoading] = useState(true)
     const [isFormOpen, setIsFormOpen] = useState(false)
-    const [editingEvent, setEditingEvent] = useState<any>(null)
+    const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
+
+    const loadEvents = useCallback(async () => {
+        setLoading(true)
+        const data = await handleGetEvents(user?.username || '')
+        setEvents(data)
+        setLoading(false)
+    }, [user?.username])
 
     useEffect(() => {
         if (user?.username) {
             loadEvents()
         }
-    }, [user?.username])
-
-    const loadEvents = async () => {
-        setLoading(true)
-        const data = await handleGetEvents(user?.username || '')
-        setEvents(data)
-        setLoading(false)
-    }
+    }, [user?.username, loadEvents])
 
     const handleDelete = async (id: string) => {
         if (!confirm('Вы уверены, что хотите удалить это событие?')) return
@@ -37,10 +46,10 @@ export function EventsViewClient() {
         }
     }
 
-    const filteredEvents = events.filter(e =>
-        e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        e.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredEvents = events.filter(event =>
+        event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.description?.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
     return (

@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import { handleGetDashboardStats, handleUpdateUserProfile } from './patients/actions'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { SideMenu } from '@/app/components/SideMenu'
 import { Header } from './components/Header'
 import { ThemeToggle } from './components/ThemeToggle'
 import { LockToggle } from './components/auth/LockToggle'
@@ -18,16 +17,12 @@ import {
     Activity,
     ArrowRight,
     Check,
-    Edit2,
-    Lock,
-    LogOut
+    Edit2
 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 export default function DashboardClient() {
-    const { user, login, logout, lock } = useAuth()
-    const router = useRouter()
+    const { user, login } = useAuth()
     const [stats, setStats] = useState<{
         isAdmin: boolean
         allowedDoctors: string[]
@@ -68,7 +63,11 @@ export default function DashboardClient() {
         const res = await handleUpdateUserProfile(user.email, tempName.trim())
         if (res.success) {
             // Update local context
-            login({ ...user, first_name: tempName.trim() }, (localStorage.getItem('denta_auth_type') as any) || 'email')
+            const storedAuthType = localStorage.getItem('denta_auth_type')
+            const authType = storedAuthType === 'google' || storedAuthType === 'yandex' || storedAuthType === 'vk' || storedAuthType === 'telegram'
+                ? storedAuthType
+                : 'email'
+            login({ ...user, first_name: tempName.trim() }, authType)
             setDisplayName(tempName.trim())
             setIsEditingName(false)
             ToastManager.success('Имя обновлено')
@@ -76,11 +75,6 @@ export default function DashboardClient() {
             ToastManager.error('Ошибка при обновлении имени')
         }
         setIsSavingName(false)
-    }
-
-    const handleLogout = () => {
-        logout()
-        router.push('/login')
     }
 
     const today = new Date()
