@@ -94,15 +94,19 @@ export async function POST(req: NextRequest) {
             })
 
             console.log('Cookies set successfully')
-        } catch (cookieError: any) {
+        } catch (cookieError: unknown) {
+            const cookieErrorObj = (typeof cookieError === 'object' && cookieError !== null)
+                ? (cookieError as Record<string, unknown>)
+                : {}
+
             console.error('FAILED at cookie operations:', {
-                name: cookieError?.name,
-                message: cookieError?.message,
-                stack: cookieError?.stack
+                name: cookieErrorObj.name,
+                message: cookieErrorObj.message,
+                stack: cookieErrorObj.stack
             })
             return NextResponse.json({
                 error: 'Ошибка при создании сессии',
-                details: cookieError?.message,
+                details: cookieErrorObj.message,
                 step: 'cookie_setup'
             }, { status: 500 })
         }
@@ -117,16 +121,20 @@ export async function POST(req: NextRequest) {
             }
         })
 
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const errorObj = (typeof error === 'object' && error !== null)
+            ? (error as Record<string, unknown>)
+            : {}
+
         console.error('PIN login top-level CRASH:', {
-            name: error?.name,
-            message: error?.message,
-            stack: error?.stack
+            name: errorObj.name,
+            message: errorObj.message,
+            stack: errorObj.stack
         })
         return NextResponse.json({
             error: 'Внутренняя ошибка сервера',
-            details: error?.message,
-            type: error?.name
+            details: errorObj.message,
+            type: errorObj.name
         }, { status: 500 })
     }
 }

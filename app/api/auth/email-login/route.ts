@@ -222,14 +222,18 @@ export async function POST(req: NextRequest) {
         email: user.email,
       }
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorObj = (typeof error === 'object' && error !== null)
+      ? (error as Record<string, unknown>)
+      : {}
+
     console.error('Email login error:', {
-      message: error?.message,
-      stack: error?.stack,
-      name: error?.name,
+      message: errorObj.message,
+      stack: errorObj.stack,
+      name: errorObj.name,
     })
     return NextResponse.json(
-      { error: `Внутренняя ошибка сервера: ${error?.message || 'Неизвестная ошибка'}` },
+      { error: `Внутренняя ошибка сервера: ${errorObj.message || 'Неизвестная ошибка'}` },
       { status: 500 }
     )
   }

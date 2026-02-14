@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     if (userError || !user) {
       // Если пользователя нет, создаем нового (регистрация после сброса пароля)
-      const { data: newUser, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('users')
         .insert({
           email: normalizedEmail,

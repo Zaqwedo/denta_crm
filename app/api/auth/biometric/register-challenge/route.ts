@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth-token'
 import crypto from 'crypto'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const cookieStore = await cookies()
         const authCookie = cookieStore.get('denta_auth')

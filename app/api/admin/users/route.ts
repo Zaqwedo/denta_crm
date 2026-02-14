@@ -3,7 +3,7 @@ import { checkAdminAuth, unauthorizedResponse } from '@/lib/auth-check'
 import { getRegisteredUsers, deleteUser } from '@/lib/admin-db'
 import { revalidatePath } from 'next/cache'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const isAdmin = await checkAdminAuth()
     if (!isAdmin) {

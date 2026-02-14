@@ -43,10 +43,14 @@ export async function POST(req: NextRequest) {
     revalidatePath('/admin/dashboard')
     
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Add doctor error:', error)
-    
-    if (error?.code === '23505') { // Unique violation
+
+    const errorCode = typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as Record<string, unknown>).code)
+      : undefined
+
+    if (errorCode === '23505') { // Unique violation
       return NextResponse.json(
         { error: 'Doctor with this name already exists' },
         { status: 409 }

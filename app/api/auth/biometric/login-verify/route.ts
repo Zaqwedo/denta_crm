@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { createToken } from '@/lib/auth-token'
-import crypto from 'crypto'
 
 export async function POST(req: NextRequest) {
     try {
-        const { email, credentialId, authenticatorData, clientDataJSON, signature, challenge } = await req.json()
+        const { email, credentialId, challenge } = await req.json()
         const cookieStore = await cookies()
         const savedChallenge = cookieStore.get('denta_login_challenge')?.value
 

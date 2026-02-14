@@ -84,10 +84,14 @@ export async function POST(req: NextRequest) {
     revalidatePath('/admin/dashboard')
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Add whitelist email error:', error)
 
-    if (error?.code === '23505') { // Unique violation
+    const errorCode = typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as Record<string, unknown>).code)
+      : undefined
+
+    if (errorCode === '23505') { // Unique violation
       return NextResponse.json(
         { error: 'Email already exists in whitelist' },
         { status: 409 }
@@ -132,10 +136,14 @@ export async function PUT(req: NextRequest) {
     revalidatePath('/admin/dashboard')
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Update whitelist email doctors error:', error)
 
-    if (error?.message === 'Email not found') {
+    const errorMessage = typeof error === 'object' && error !== null && 'message' in error
+      ? String((error as Record<string, unknown>).message)
+      : ''
+
+    if (errorMessage === 'Email not found') {
       return NextResponse.json(
         { error: 'Email not found' },
         { status: 404 }
