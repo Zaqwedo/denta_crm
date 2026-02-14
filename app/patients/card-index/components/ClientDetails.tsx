@@ -43,6 +43,17 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
     nurses,
     handleAddRecord
 }) => {
+    const buildPhoneHref = (phone: string): string | null => {
+        const digits = phone.replace(/\D/g, '')
+        if (!digits) return null
+
+        if (digits.length === 10) return `tel:+7${digits}`
+        if (digits.length === 11 && digits.startsWith('8')) return `tel:+7${digits.slice(1)}`
+        if (digits.length === 11 && digits.startsWith('7')) return `tel:+${digits}`
+
+        return `tel:+${digits}`
+    }
+
     return (
         <div className="animate-in fade-in slide-in-from-right duration-300">
             <button
@@ -70,9 +81,22 @@ export const ClientDetails: React.FC<ClientDetailsProps> = ({
                     <div className="flex items-start text-gray-600">
                         <span className="w-32 text-gray-400 font-medium text-sm uppercase tracking-wider pt-1">Телефоны</span>
                         <div className="flex flex-wrap gap-2">
-                            {selectedClient.phones.map(p => (
-                                <span key={p} className="bg-gray-100 px-3 py-1 rounded-lg text-sm font-bold text-gray-700">{p}</span>
-                            ))}
+                            {selectedClient.phones.map(p => {
+                                const phoneHref = buildPhoneHref(p)
+
+                                return phoneHref ? (
+                                    <a
+                                        key={p}
+                                        href={phoneHref}
+                                        className="bg-gray-100 px-3 py-1 rounded-lg text-sm font-bold text-blue-700 hover:bg-blue-50 hover:text-blue-800 transition-colors underline-offset-2 hover:underline"
+                                        title={`Позвонить: ${p}`}
+                                    >
+                                        {p}
+                                    </a>
+                                ) : (
+                                    <span key={p} className="bg-gray-100 px-3 py-1 rounded-lg text-sm font-bold text-gray-700">{p}</span>
+                                )
+                            })}
                         </div>
                     </div>
                 </div>
