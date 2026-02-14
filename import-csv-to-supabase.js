@@ -69,7 +69,7 @@ function parseDateTime(dateTimeString) {
   }
   
   // Убираем кавычки если есть
-  let cleaned = dateTimeString.trim().replace(/^["']|["']$/g, '')
+  const cleaned = dateTimeString.trim().replace(/^["']|["']$/g, '')
   
   // Формат: "28.10.2024, 11:00:00" или "28.10.2024, 8:47"
   const parts = cleaned.split(',')
@@ -231,7 +231,7 @@ async function importCSV() {
   // Импортируем по одной записи (батчевый импорт вызывает проблемы с типами данных)
   let imported = 0
   let errors = 0
-  let errorDetails = []
+  const errorDetails = []
   
   console.log(`📤 Начинаю импорт ${patientsToImport.length} записей...`)
   

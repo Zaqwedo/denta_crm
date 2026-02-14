@@ -58,7 +58,7 @@ function parseDateTime(dateTimeString) {
     return { date: null, time: null }
   }
   
-  let cleaned = dateTimeString.trim().replace(/^["']|["']$/g, '')
+  const cleaned = dateTimeString.trim().replace(/^["']|["']$/g, '')
   const parts = cleaned.split(',')
   if (parts.length >= 2) {
     const date = parts[0].trim()

@@ -367,7 +367,7 @@ export async function getChangedPatients(): Promise<PatientData[]> {
     // Если нет - мы можем показать лишнее. 
     // Обычно архив содержит копию данных, значит doctor там есть.
 
-    let deletedQuery = client.from('deleted_patients').select('*').order('deleted_at', { ascending: false }).limit(20);
+    const deletedQuery = client.from('deleted_patients').select('*').order('deleted_at', { ascending: false }).limit(20);
 
     // Применяем те же фильтры, если не админ (копипаст логики выше, или упрощенно)
     // Для скорости пока без жесткой фильтрации, или если структура 1в1

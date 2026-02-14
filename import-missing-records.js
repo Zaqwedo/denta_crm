@@ -79,7 +79,7 @@ async function importMissingRecords() {
     
     // Очищаем данные
     const cleanedPatient = {}
-    let appointmentDate = _appointmentDate
+    const appointmentDate = _appointmentDate
     
     Object.keys(patient).forEach(key => {
       if (patient[key] !== null && patient[key] !== undefined) {

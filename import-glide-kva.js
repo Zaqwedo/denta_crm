@@ -44,7 +44,7 @@ function parseDateTime(dateTimeString) {
     return { date: null, time: null }
   }
   
-  let cleaned = dateTimeString.trim().replace(/^["']|["']$/g, '')
+  const cleaned = dateTimeString.trim().replace(/^["']|["']$/g, '')
   
   // Формат: "28.10.2024, 11:00:00" или "28.10.2024, 8:47" или "28.10.2024"
   const parts = cleaned.split(',')
@@ -78,7 +78,7 @@ function convertBirthDateToISO(dateString) {
   }
   
   // Убираем лишние пробелы
-  let cleaned = dateString.trim().replace(/\s+/g, '')
+  const cleaned = dateString.trim().replace(/\s+/g, '')
   
   // Формат DD.MM.YYYY -> YYYY-MM-DD
   const ddmmyyyy = cleaned.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/)
