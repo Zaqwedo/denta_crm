@@ -1,9 +1,9 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { PatientData, updatePatientProfile, getPatients, addPatient, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
-import { DB_COLUMNS, RECORD_STATUS, EMOJI_SET, PATIENT_STATUSES } from '@/lib/constants'
+import { useSearchParams } from 'next/navigation'
+import { updatePatientProfile, addPatient, mergePatients, ignoreDuplicate } from '@/lib/supabase-db'
+import { DB_COLUMNS, PATIENT_STATUSES } from '@/lib/constants'
 import { handleDeletePatient } from '../actions'
 import { useAuth } from '../../contexts/AuthContext'
 import { List, RowComponentProps } from 'react-window'
@@ -26,17 +26,10 @@ const ClientDetails = dynamic(() => import('./components/ClientDetails').then(mo
 })
 import { findPotentialDuplicates } from '@/lib/patient-utils'
 
-const logger = {
-    log: (...args: any[]) => console.log(...args),
-    error: (...args: any[]) => console.error(...args),
-    warn: (...args: any[]) => console.warn(...args)
-}
-
 // Вспомогательная функция для нормализации ФИО (для сравнения)
 const normalizeName = (name: string) => name.toLowerCase().replace(/[^а-яё]/g, '').trim()
 
 export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) {
-    const router = useRouter()
     const searchParams = useSearchParams()
     const { user } = useAuth()
 
@@ -171,7 +164,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             setSelectedClient(updatedClient)
             await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.EMOJI]: newEmoji })
             mutate('card-index') // Ревалидируем
-        } catch (err) {
+        } catch {
             mutate('card-index') // Откатываем в случае ошибки
             alert('Ошибка при сохранении')
         } finally {
@@ -200,7 +193,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             setIsAddingRecord(false)
             mutate('card-index')
             alert('Запись добавлена.')
-        } catch (err) {
+        } catch {
             alert('Ошибка при добавлении записи')
         } finally {
             setIsUpdating(false)
@@ -232,7 +225,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
                 mutate('card-index')
                 alert('Ошибка при удалении: ' + result.error)
             }
-        } catch (err) {
+        } catch {
             mutate('card-index')
             alert('Ошибка при удалении записи')
         } finally {
@@ -257,7 +250,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             setSelectedClient(updatedClient)
             await updatePatientProfile(selectedClient.name, selectedClient.birthDate, { [DB_COLUMNS.NOTES]: localNotes || undefined })
             mutate('card-index')
-        } catch (err) {
+        } catch {
             mutate('card-index')
             alert('Ошибка при сохранении комментария')
         } finally {
@@ -274,7 +267,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             )
             mutate('card-index')
             alert('Дубликат проигнорирован')
-        } catch (err) {
+        } catch {
             alert('Ошибка')
         } finally {
             setMerging(false)
@@ -304,7 +297,7 @@ export function CardIndexClient({ initialData }: { initialData: ClientInfo[] }) 
             })
             mutate('card-index')
             alert('Клиенты объединены')
-        } catch (err) {
+        } catch {
             alert('Ошибка объединения')
         } finally {
             setMerging(false)

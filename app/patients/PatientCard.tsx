@@ -6,14 +6,13 @@ import { formatTime } from '@/lib/utils'
 
 interface PatientCardProps {
   patient: Record<string, any> // Теперь patient содержит "чистые" строковые данные
-  rowIndex?: number // Оставляем только то, что используется
 }
 
-export function PatientCard({ patient, rowIndex }: PatientCardProps) {
+export function PatientCard({ patient }: PatientCardProps) {
   const router = useRouter()
 
   // Доступ к полям напрямую из объекта patient
-  const { id, name, phone, date, time, doctor, status, birthDate, nurse, emoji, comments } = patient
+  const { id, name, phone, date, time, doctor, status, nurse, emoji, comments } = patient
 
   const formattedTime = formatTime(time) // "HH:MM"
   const formattedPhone = phone ? `+${phone.replace(/\D/g, '').replace(/(\d{1})(\d{3})(\d{3})(\d{2})(\d{2})/, '$1 ($2) $3-$4-$5')}` : 'Не указан'

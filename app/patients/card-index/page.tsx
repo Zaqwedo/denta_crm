@@ -2,7 +2,6 @@ import { getPatients, PatientData } from '@/lib/supabase-db'
 import { groupPatientsForCardIndex } from '@/lib/patient-utils'
 import { ProtectedRoute } from '../../components/ProtectedRoute'
 import { CardIndexClient } from './CardIndexClient'
-import { DB_COLUMNS } from '@/lib/constants'
 
 export const revalidate = 0 // Должно быть актуальным
 

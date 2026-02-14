@@ -29,17 +29,6 @@ export default async function PatientsPage() {
 }
 
 function PatientsPageContent({ patients, error }: { patients: Array<Record<string, any>>, error: string | null }) {
-
-  // Функция для получения значения поля (case-insensitive) - используется только здесь
-  // для формирования cleanPatient, не передается в Client Components.
-  function getFieldValue(patient: Record<string, any>, fieldName: string): string | null {
-    const key = Object.keys(patient).find(
-      k => k.toLowerCase() === fieldName.toLowerCase()
-    )
-    return key ? String(patient[key] || '') : null
-  }
-
-
   return (
     <div className="min-h-screen bg-[#f2f2f7]" style={{ paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
       <div className="max-w-md mx-auto px-4 py-8">

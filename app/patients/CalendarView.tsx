@@ -61,21 +61,6 @@ function WeekView({ patients, events, selectedDate, onDateChange }: { patients: 
     onDateChange(new Date())
   }
 
-  const getAppointmentColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'подтвержден':
-        return 'bg-green-100 border-green-300 text-green-800'
-      case 'ожидает':
-        return 'bg-yellow-100 border-yellow-300 text-yellow-800'
-      case 'отменен':
-        return 'bg-red-100 border-red-300 text-red-800'
-      case 'завершен':
-        return 'bg-gray-100 border-gray-300 text-gray-600'
-      default:
-        return 'bg-blue-100 border-blue-300 text-blue-800'
-    }
-  }
-
   const getStatusColorLine = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'подтвержден':
@@ -350,7 +335,7 @@ export function CalendarView() {
                 formattedDate = dateObj.toISOString().split('T')[0]
               }
             }
-          } catch (error) {
+          } catch {
             // Оставляем пустой, если не удалось преобразовать
           }
         }

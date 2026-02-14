@@ -1,5 +1,4 @@
 import React from 'react'
-import { DB_COLUMNS } from '@/lib/constants'
 import { NewRecord } from '../types'
 
 interface AddRecordModalProps {

@@ -58,18 +58,9 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       if (!isNaN(dateObj.getTime())) {
         return dateObj.toISOString().split('T')[0]
       }
-    } catch (e) { }
+    } catch { }
     return date
   })() : ''
-
-  // Функция для форматирования телефона с маской для отображения
-  const formatPhoneForDisplay = (phoneStr: string): string => {
-    const digits = String(phoneStr).replace(/\D/g, '')
-    if (digits.length === 11 && digits.startsWith('7')) {
-      return `+7 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9)}`
-    }
-    return phoneStr
-  }
 
   // Исходные данные для сравнения (будет обновляться в useEffect)
   const [initialData, setInitialData] = useState({
@@ -548,7 +539,6 @@ export function PatientDetailsModal({ patient, isOpen, onClose, rowIndex }: Pati
       {/* Модальное окно подтверждения изменений */}
       <ConfirmChangesModal
         isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmChanges}
         onCancel={handleCancelChanges}
         changes={getChanges()}

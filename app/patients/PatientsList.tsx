@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { PatientCard } from './PatientCard'
 import { SearchAndFilters } from './SearchAndFilters'
-import { Header } from '../components/Header'
 
 interface Patient {
   id: string
@@ -136,7 +135,6 @@ export function PatientsList({ patients }: PatientsListProps) {
             <PatientCard
               key={`patient-${patient.id}`}
               patient={patient}
-              rowIndex={0}
             />
           ))}
         </div>

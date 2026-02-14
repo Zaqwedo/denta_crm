@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { DB_COLUMNS, RECORD_STATUS } from '@/lib/constants'
+import { DB_COLUMNS } from '@/lib/constants'
 import { addPatient, updatePatient, archiveAndRemovePatient, getPatientChanges, restorePatient, PatientData, getPatients, updateUserProfile } from '@/lib/supabase-db'
 import { groupPatientsForCardIndex } from '@/lib/patient-utils'
 import { ClientInfo } from './card-index/types'
@@ -278,4 +278,3 @@ export async function handleUpdateUserProfile(email: string, firstName: string, 
     }
   }
 }
-

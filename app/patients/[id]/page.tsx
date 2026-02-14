@@ -90,7 +90,7 @@ export default async function PatientViewPage({ params }: { params: Promise<{ id
     }
 
     return <PatientViewClient patient={cleanPatient} error={null} />
-  } catch (err) {
+  } catch {
     return <PatientViewClient patient={null} error="Ошибка при загрузке данных пациента" />
   }
 }

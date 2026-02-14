@@ -105,7 +105,6 @@ export function PatientChangesList({ patient, changeDate }: PatientChangesListPr
       <div className={`relative group ${patient.is_deleted ? 'opacity-85 grayscale' : ''}`}>
         <PatientCard
           patient={patient}
-          rowIndex={0}
         />
         <button
           onClick={handleRevert}

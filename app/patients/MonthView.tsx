@@ -215,14 +215,14 @@ export function MonthView({ patients, events, selectedDate, onDateChange }: Mont
                     </div>
 
                     <div className="flex flex-wrap gap-1">
-                      {dayEvents.map((event, eventIndex) => (
+                      {dayEvents.map((event) => (
                         <div
                           key={event.id}
                           className="w-2 h-2 rounded-full bg-blue-600 shadow-[0_0_5px_rgba(37,99,235,0.5)]"
                           title={`СОБЫТИЕ: ${event.title}`}
                         ></div>
                       ))}
-                      {dayPatients.slice(0, 5 - Math.min(dayEvents.length, 5)).map((patient, patientIndex) => (
+                      {dayPatients.slice(0, 5 - Math.min(dayEvents.length, 5)).map((patient) => (
                         <div
                           key={patient.id}
                           className={`w-2 h-2 rounded-full ${getAppointmentColor(patient.status)}`}

@@ -2,7 +2,6 @@
 
 interface ConfirmChangesModalProps {
   isOpen: boolean
-  onClose: () => void
   onConfirm: () => void
   onCancel: () => void
   changes: Array<{ field: string; oldValue: string; newValue: string }>
@@ -10,7 +9,6 @@ interface ConfirmChangesModalProps {
 
 export function ConfirmChangesModal({ 
   isOpen, 
-  onClose, 
   onConfirm, 
   onCancel,
   changes 

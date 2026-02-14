@@ -70,7 +70,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       if (!isNaN(dateObj.getTime())) {
         return dateObj.toISOString().split('T')[0]
       }
-    } catch (e) { }
+    } catch { }
     return initialPatient.date
   })() : ''
 
@@ -118,7 +118,7 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
           if (!isNaN(dateObj.getTime())) {
             return dateObj.toISOString().split('T')[0]
           }
-        } catch (e) { }
+        } catch { }
         return initialPatient.date
       })() : ''
 
@@ -579,7 +579,6 @@ export function PatientViewClient({ patient: initialPatient, error: initialError
       </div>
       <ConfirmChangesModal
         isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
         onConfirm={handleConfirmChanges}
         onCancel={handleCancelChanges}
         changes={getChanges()}

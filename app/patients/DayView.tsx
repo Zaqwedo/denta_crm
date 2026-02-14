@@ -92,8 +92,6 @@ export function DayView({ patients, events, selectedDate, onDateChange }: DayVie
     return timeA.localeCompare(timeB)
   })
 
-  const hours = Array.from({ length: 14 }, (_, i) => i + 8) // 8:00 - 21:00
-
   const getAppointmentColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'подтвержден':
