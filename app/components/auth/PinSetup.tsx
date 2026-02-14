@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { PinPad } from './PinPad'
-import { ShieldCheck, ArrowRight, CheckCircle2, Fingerprint, Smartphone } from 'lucide-react'
+import { ShieldCheck, CheckCircle2, Fingerprint } from 'lucide-react'
 import { useAuth } from '@/app/contexts/AuthContext'
 import { bufferToBase64 } from '@/lib/biometrics'
 
@@ -75,7 +75,7 @@ export const PinSetup: React.FC<PinSetupProps> = ({ onComplete, onSkip }) => {
                 const data = await response.json()
                 setError(data.error || 'Ошибка при сохранении')
             }
-        } catch (err) {
+        } catch {
             setError('Ошибка сети')
         } finally {
             setLoading(false)

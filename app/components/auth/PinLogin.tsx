@@ -64,7 +64,7 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
                 setError(data.error || 'Неверный PIN-код')
                 setPin('')
             }
-        } catch (err) {
+        } catch {
             setError('Ошибка сети')
         } finally {
             setLoading(false)
@@ -107,8 +107,6 @@ export const PinLogin: React.FC<PinLoginProps> = ({ email, onSuccess, onSwitchTo
             if (!assertion) throw new Error('Ошибка биометрии')
 
             // 3. Отправляем на верификацию
-            const response = assertion.response as AuthenticatorAssertionResponse;
-
             const verifyRes = await fetch('/api/auth/biometric/login-verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

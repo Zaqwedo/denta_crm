@@ -9,8 +9,7 @@ export const SecuritySettings: React.FC = () => {
     const {
         isBiometricSupported,
         isBiometricEnabled,
-        setIsBiometricEnabled,
-        user
+        setIsBiometricEnabled
     } = useAuth()
 
     const [showPinSetup, setShowPinSetup] = useState(false)

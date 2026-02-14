@@ -15,7 +15,7 @@ export const PinPad: React.FC<PinPadProps> = ({ onNumberClick, onDeleteClick, di
 
     return (
         <div className="grid grid-cols-3 gap-4 max-w-[280px] mx-auto">
-            {numbers.map((item, index) => {
+            {numbers.map((item) => {
                 if (item === 'action') {
                     return <div key="left-action" className="flex items-center justify-center">{leftAction}</div>
                 }
