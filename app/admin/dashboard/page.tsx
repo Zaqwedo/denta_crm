@@ -107,7 +107,7 @@ export default function AdminDashboard() {
         console.log('loadData: загружены whitelist emails', {
           emails: whitelistData.emails,
           count: whitelistData.emails?.length || 0,
-          emailsWithData: whitelistData.emails?.map((e: any) => ({
+          emailsWithData: whitelistData.emails?.map((e: { email: string; doctors?: string[]; nurses?: string[] }) => ({
             email: e.email,
             doctors: e.doctors,
             nurses: e.nurses,
@@ -125,17 +125,6 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Load data error:', err)
       setError('Ошибка загрузки данных')
-    }
-  }
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/admin/login', { method: 'DELETE' })
-      // КРИТИЧНО: Принудительно обновляем страницу для загрузки данных с правильными правами доступа
-      router.refresh()
-      router.push('/patients')
-    } catch (err) {
-      console.error('Logout error:', err)
     }
   }
 

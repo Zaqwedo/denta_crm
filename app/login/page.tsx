@@ -121,7 +121,7 @@ export default function LoginPage() {
       let data
       try {
         data = await response.json()
-      } catch (jsonError) {
+      } catch {
         setError('Ошибка: сервер вернул неверный формат ответа')
         return
       }
@@ -155,11 +155,11 @@ export default function LoginPage() {
       } else {
         setError(data.error || 'Ошибка входа')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Более детальная обработка ошибок
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
         setError('Ошибка подключения к серверу. Проверьте, запущен ли сервер.')
-      } else if (error.message) {
+      } else if (error instanceof Error && error.message) {
         setError(`Ошибка при входе: ${error.message}`)
       } else {
         setError('Ошибка при входе. Попробуйте еще раз.')
@@ -198,7 +198,7 @@ export default function LoginPage() {
       } else {
         setError(data.error || 'Ошибка регистрации')
       }
-    } catch (error) {
+    } catch {
       setError('Ошибка при регистрации')
     } finally {
       setIsLoading(false)
@@ -235,7 +235,7 @@ export default function LoginPage() {
       } else {
         setError(data.error || 'Ошибка при смене пароля')
       }
-    } catch (error) {
+    } catch {
       setError('Ошибка при смене пароля')
     } finally {
       setIsLoading(false)

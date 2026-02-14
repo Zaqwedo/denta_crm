@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { logger } from '@/lib/logger'
 import { supabase } from '@/lib/supabase'
 import { isBiometricsAvailable } from '@/lib/biometrics'
 
@@ -40,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isBiometricSupported, setIsBiometricSupported] = useState(false)
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false)
   const [authType, setAuthType] = useState<'email' | 'google' | 'yandex' | 'vk' | 'telegram' | null>(null)
-  const [allowedEmails, setAllowedEmails] = useState<string[]>([])
+  const [, setAllowedEmails] = useState<string[]>([])
 
   // Проверяем поддержку биометрии при загрузке
   useEffect(() => {
@@ -126,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const savedUser = localStorage.getItem('denta_user')
     const savedTimestamp = localStorage.getItem('denta_auth_timestamp')
-    const savedAuthType = localStorage.getItem('denta_auth_type') as any
+    const savedAuthType = localStorage.getItem('denta_auth_type')
     const sessionLocked = sessionStorage.getItem('denta_is_locked') === 'true'
     const hasPin = localStorage.getItem('denta_has_pin') === 'true'
 
@@ -135,7 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const timestamp = parseInt(savedTimestamp)
       if (Date.now() - timestamp < 7 * 24 * 60 * 60 * 1000) {
         setUser(userData)
-        setAuthType(savedAuthType || 'email')
+        const resolvedAuthType = savedAuthType === 'google' || savedAuthType === 'yandex' || savedAuthType === 'vk' || savedAuthType === 'telegram'
+          ? savedAuthType
+          : 'email'
+        setAuthType(resolvedAuthType)
         if (hasPin) {
           const isUnlockedInSession = sessionStorage.getItem('denta_unlocked_in_session') === 'true'
           if (sessionLocked || !isUnlockedInSession) {

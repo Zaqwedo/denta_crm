@@ -5,10 +5,19 @@ import { X, Calendar, Clock, MapPin, AlignLeft, Send } from 'lucide-react'
 import { handleAddEvent, handleUpdateEvent } from './actions'
 import { useAuth } from '../contexts/AuthContext'
 
+type EditableEvent = {
+    id?: string
+    title?: string
+    date?: string
+    time?: string
+    location?: string
+    description?: string
+}
+
 interface EventFormProps {
     isOpen: boolean
     onClose: () => void
-    event?: any // If editing
+    event?: EditableEvent | null
 }
 
 export function EventForm({ isOpen, onClose, event }: EventFormProps) {
@@ -39,7 +48,7 @@ export function EventForm({ isOpen, onClose, event }: EventFormProps) {
             } else {
                 setError(result.error || 'Произошла ошибка')
             }
-        } catch (err) {
+        } catch {
             setError('Произошла ошибка при сохранении')
         } finally {
             setIsSubmitting(false)
